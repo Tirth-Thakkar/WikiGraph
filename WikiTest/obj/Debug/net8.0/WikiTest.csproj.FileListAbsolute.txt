@@ -1,0 +1,14 @@
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\WikiTest.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\WikiTest.AssemblyInfoInputs.cache
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\WikiTest.AssemblyInfo.cs
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\WikiTest.csproj.CoreCompileInputs.cache
+C:\Users\andyk\source\repos\WikiTest\WikiTest\bin\Debug\net8.0\WikiTest.exe
+C:\Users\andyk\source\repos\WikiTest\WikiTest\bin\Debug\net8.0\WikiTest.deps.json
+C:\Users\andyk\source\repos\WikiTest\WikiTest\bin\Debug\net8.0\WikiTest.runtimeconfig.json
+C:\Users\andyk\source\repos\WikiTest\WikiTest\bin\Debug\net8.0\WikiTest.dll
+C:\Users\andyk\source\repos\WikiTest\WikiTest\bin\Debug\net8.0\WikiTest.pdb
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\WikiTest.dll
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\refint\WikiTest.dll
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\WikiTest.pdb
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\WikiTest.genruntimeconfig.cache
+C:\Users\andyk\source\repos\WikiTest\WikiTest\obj\Debug\net8.0\ref\WikiTest.dll
