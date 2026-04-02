@@ -1,7 +1,0 @@
-<Solution>
-  <Project Path="WikiGraph.Api/WikiGraph.Api.csproj" />
-  <Project Path="WikiGraph.Web/WikiGraph.Web.csproj" />
-  <Project Path="WikiGraph.Contracts/WikiGraph.Contracts.csproj" />
-  <Project Path="WikiGraph.Client/WikiGraph.Client.csproj" />
-  <Project Path="WikiGraph.Tests/WikiGraph.Tests.csproj" />
-</Solution>
