@@ -1,7 +1,0 @@
-<Project>
-  <Target Name="GenerateWikiGraphUml"
-          AfterTargets="Build"
-          Condition="'$(MSBuildProjectName)' == 'WikiGraph.Api' and '$(DesignTimeBuild)' != 'true' and Exists('$(MSBuildThisFileDirectory)scripts/generate-uml.sh')">
-    <Exec Command="bash &quot;$(MSBuildThisFileDirectory)scripts/generate-uml.sh&quot; &quot;$(MSBuildThisFileDirectory)README.md&quot; &quot;$(MSBuildThisFileDirectory)docs/uml&quot;" />
-  </Target>
-</Project>
