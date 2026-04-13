@@ -36,3 +36,20 @@ Open `http://localhost:5024` for the WikiGraph client.
 - Opening the backend root redirects to the hosted API reference at `/docs/v1`.
 - The Blazor client runs separately and calls the API at `http://localhost:5052/`.
 - If you change local environment values, restart the backend.
+
+run.sh will run the testing first and then run everything else. 
+
+To use run.sh 
+Set the file permission
+```bash 
+chmod +x run.sh
+```
+Then you can use this command. 
+```bash 
+./run.sh
+```
+
+Run tests:
+```bash
+dotnet test WikiGraph.Tests/WikiGraph.Tests.csproj
+```
