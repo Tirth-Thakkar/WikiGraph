@@ -175,6 +175,19 @@ public sealed class SqliteSessionRepository
         command.Parameters.AddWithValue("$lastAccessUtc", lastAccessUtc.ToString("O"));
         command.ExecuteNonQuery();
     }
+   public void DeleteSession(string sessionId)
+    {
+        using var connection = _connectionFactory.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.Transaction = null;
+        command.CommandText = """
+            DELETE FROM Sessions WHERE SessionId = $sessionId;
+
+            """;
+        command.Parameters.AddWithValue("$sessionId", sessionId);
+        command.ExecuteNonQuery();
+    }
+
 
     // Inserts one message and returns its generated row id.
     private static long InsertMessage(SqliteConnection connection, string sessionId, MessageDto message, SqliteTransaction transaction)

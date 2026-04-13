@@ -36,3 +36,8 @@ Accept: application/json
 
 GET {{WikiGraph.Api_HostAddress}}/api/sessions/session-x/graphs
 Accept: application/json
+
+###
+
+DELETE {{WikiGraph.Api_HostAddress}}/api/sessions/session-x/
+Accept: application/json

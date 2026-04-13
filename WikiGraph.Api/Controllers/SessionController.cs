@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using WikiGraph.Api.Application.Services;
 using WikiGraph.Api.Infrastructure.Persistence;
@@ -32,6 +33,8 @@ public sealed class SessionController : ControllerBase
         return Created($"/api/sessions/{session.SessionId}", session);
     }
 
+
+
     // Adds a Wikipedia topic or URL to the session and returns the updated session detail.
     [HttpPost("{sessionId}/articles")]
     public async Task<ActionResult<SessionDetailDto>> AddArticle(
@@ -52,6 +55,13 @@ public sealed class SessionController : ControllerBase
         return Ok(await _wikiSessionService.AddArticleAsync(sessionId, request, cancellationToken));
     }
 
+    [HttpDelete("{sessionId}")]
+    public IActionResult Delete(string sessionId)
+    {   
+        _sessionRepository.DeleteSession(sessionId);
+        return Ok(new {status= $"{sessionId} Deleted"});
+    }
+
     // Returns one session with its messages, citations, and graphs.
     [HttpGet("{sessionId}")]
     public ActionResult<SessionDetailDto> GetSession(string sessionId)
@@ -65,4 +75,6 @@ public sealed class SessionController : ControllerBase
     {
         return _sessionRepository.GetGraphs(sessionId) is { } graphs ? Ok(graphs) : NotFound();
     }
+
+  
 }
