@@ -40,6 +40,18 @@ dotnet build WikiGraph.Api/WikiGraph.Api.csproj
 
 The generated document is written to `WikiGraph.Api/openapi/WikiGraph.Api.json`.
 
+## UML Generation
+
+Generate PlantUML class diagrams for the C# codebase:
+
+```bash
+./scripts/generate-uml.sh
+```
+
+This writes `.puml` outputs to `uml/` with `uml/include.puml` as the top-level diagram entry.
+It renders each diagram to `.svg` by default, and to high-DPI `.png` only when `--png` is used.
+See `USAGE.md` for details and extension options.
+
 ## API Reference UI
 
 WikiGraph uses `Scalar.AspNetCore` to render a browser-based OpenAPI reference on top of the generated OpenAPI document. The UI is served from `/docs/v1`, and the backend root `/` redirects there so opening the backend in a browser lands on the docs page first.

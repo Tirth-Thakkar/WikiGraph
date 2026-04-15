@@ -1,0 +1,17 @@
+@startuml
+class WikiSessionService <<sealed>> {
+    + WikiSessionService(wikipediaService:WikipediaService, geminiService:GeminiService, sessionRepository:SqliteSessionRepository, vectorStore:SqliteVectorStore)
+    + <<async>> AddArticleAsync(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<SessionDetailDto>
+    - {static} BuildSearchText(prompt:string, messages:IReadOnlyList<MessageDto>) : string
+    - {static} BuildUserMessage(topic:string, wikipediaUrl:string, articleTitle:string) : string
+    - {static} BuildCitations(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<CitationDto>
+    - {static} BuildGraphs(prompt:string, article:WikiArticle, relatedTopics:IReadOnlyList<string>, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<GraphDto>
+    - {static} BuildSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<string>
+    - {static} SplitGraphLabels(value:string) : IEnumerable<string>
+    - {static} InferTitle(prompt:string) : string
+}
+WikiSessionService --> "_wikipediaService" WikipediaService
+WikiSessionService --> "_geminiService" GeminiService
+WikiSessionService --> "_sessionRepository" SqliteSessionRepository
+WikiSessionService --> "_vectorStore" SqliteVectorStore
+@enduml

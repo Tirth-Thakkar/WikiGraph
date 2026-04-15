@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentScriptType="application/ecmascript" contentStyleType="text/css" height="232px" preserveAspectRatio="none" style="width:344px;height:232px;" version="1.1" viewBox="0 0 344 232" width="344px" zoomAndPan="magnify"><defs><filter height="300%" id="fd5u8zxcteras" width="300%" x="-1" y="-1"><feGaussianBlur result="blurOut" stdDeviation="2.0"/><feColorMatrix in="blurOut" result="blurOut2" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"/><feOffset dx="4.0" dy="4.0" in="blurOut2" result="blurOut3"/><feBlend in="SourceGraphic" in2="blurOut3" mode="normal"/></filter></defs><g><!--MD5=[54ca27cd6c8f34f243e2d350a7366aa4]
+class ISqliteConnectionFactory--><rect fill="#FEFECE" filter="url(#fd5u8zxcteras)" height="60.8047" id="ISqliteConnectionFactory" style="stroke: #A80036; stroke-width: 1.5;" width="220" x="59.5" y="8"/><ellipse cx="88.45" cy="24" fill="#B4A7E5" rx="11" ry="11" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M84.3719,19.7656 L84.3719,17.6094 L91.7625,17.6094 L91.7625,19.7656 L89.2938,19.7656 L89.2938,27.8438 L91.7625,27.8438 L91.7625,30 L84.3719,30 L84.3719,27.8438 L86.8406,27.8438 L86.8406,19.7656 L84.3719,19.7656 Z "/><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="157" x="105.55" y="28.1543">ISqliteConnectionFactory</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="60.5" x2="278.5" y1="40" y2="40"/><line style="stroke: #A80036; stroke-width: 1.5;" x1="60.5" x2="278.5" y1="48" y2="48"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacingAndGlyphs" textLength="208" x="65.5" y="62.2104">OpenConnection() : SqliteConnection</text><!--MD5=[23cade6ff52f7392d9f71a5082a333b7]
+class SqliteConnectionFactory--><rect fill="#FEFECE" filter="url(#fd5u8zxcteras)" height="92.3516" id="SqliteConnectionFactory" style="stroke: #A80036; stroke-width: 1.5;" width="327" x="6" y="129"/><ellipse cx="89.25" cy="147.9688" fill="#ADD1B2" rx="11" ry="11" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M92.2188,153.6094 Q91.6406,153.9063 91,154.0469 Q90.3594,154.2031 89.6563,154.2031 Q87.1563,154.2031 85.8281,152.5625 Q84.5156,150.9063 84.5156,147.7813 Q84.5156,144.6563 85.8281,143 Q87.1563,141.3438 89.6563,141.3438 Q90.3594,141.3438 91,141.5 Q91.6563,141.6563 92.2188,141.9531 L92.2188,144.6719 Q91.5938,144.0938 91,143.8281 Q90.4063,143.5469 89.7813,143.5469 Q88.4375,143.5469 87.75,144.625 Q87.0625,145.6875 87.0625,147.7813 Q87.0625,149.875 87.75,150.9531 Q88.4375,152.0156 89.7813,152.0156 Q90.4063,152.0156 91,151.75 Q91.5938,151.4688 92.2188,150.8906 L92.2188,153.6094 Z "/><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="55" x="158.25" y="145.1387">«sealed»</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="152" x="109.75" y="159.1074">SqliteConnectionFactory</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="7" x2="332" y1="166.9375" y2="166.9375"/><rect fill="none" height="6" style="stroke: #C82930; stroke-width: 1.0;" width="6" x="14" y="174.9375"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacingAndGlyphs" textLength="213" x="26" y="181.1479">«readonly» _connectionString : string</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="7" x2="332" y1="187.7422" y2="187.7422"/><ellipse cx="17" cy="198.7422" fill="#84BE84" rx="3" ry="3" style="stroke: #038048; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacingAndGlyphs" textLength="301" x="26" y="201.9526">SqliteConnectionFactory(configuration:IConfiguration)</text><ellipse cx="17" cy="211.5469" fill="#84BE84" rx="3" ry="3" style="stroke: #038048; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacingAndGlyphs" textLength="208" x="26" y="214.7573">OpenConnection() : SqliteConnection</text><!--MD5=[35b3e21fc5b3e9539289f89efb8b81e6]
+reverse link ISqliteConnectionFactory to SqliteConnectionFactory--><path d="M169.5,89.07 C169.5,102.12 169.5,116.14 169.5,128.94 " fill="none" id="ISqliteConnectionFactory&lt;-SqliteConnectionFactory" style="stroke: #A80036; stroke-width: 1.0;"/><polygon fill="none" points="162.5,89.02,169.5,69.02,176.5,89.02,162.5,89.02" style="stroke: #A80036; stroke-width: 1.0;"/><!--MD5=[d31f29de6ea10d1d4a6c516b6d458376]
+@startuml
+interface ISqliteConnectionFactory {
+    OpenConnection() : SqliteConnection
+}
+class SqliteConnectionFactory <<sealed>> {
+    - <<readonly>> _connectionString : string
+    + SqliteConnectionFactory(configuration:IConfiguration)
+    + OpenConnection() : SqliteConnection
+}
+ISqliteConnectionFactory <|- - SqliteConnectionFactory
+@enduml
+
+PlantUML version 1.2020.02(Sun Mar 01 02:22:07 PST 2020)
+(GPL source distribution)
+Java Runtime: OpenJDK Runtime Environment
+JVM: OpenJDK 64-Bit Server VM
+Java Version: 16.0.2+7-67
+Operating System: Linux
+Default Encoding: UTF-8
+Language: en
+Country: US
+--></g></svg>

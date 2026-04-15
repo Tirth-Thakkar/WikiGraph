@@ -1,0 +1,11 @@
+@startuml
+interface ISqliteConnectionFactory {
+    OpenConnection() : SqliteConnection
+}
+class SqliteConnectionFactory <<sealed>> {
+    - <<readonly>> _connectionString : string
+    + SqliteConnectionFactory(configuration:IConfiguration)
+    + OpenConnection() : SqliteConnection
+}
+ISqliteConnectionFactory <|-- SqliteConnectionFactory
+@enduml

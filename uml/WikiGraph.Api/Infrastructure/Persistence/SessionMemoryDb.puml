@@ -1,0 +1,9 @@
+@startuml
+class SessionMemoryDb <<sealed>> {
+    + <<const>> DefaultUserId : string = "local-device"
+    + SessionMemoryDb(connectionFactory:ISqliteConnectionFactory)
+    - InitializeSchema() : void
+    - {static} EnsureColumn(connection:SqliteConnection, tableName:string, columnName:string, columnDefinition:string) : void
+}
+SessionMemoryDb --> "_connectionFactory" ISqliteConnectionFactory
+@enduml

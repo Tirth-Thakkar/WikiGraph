@@ -1,0 +1,22 @@
+@startuml
+class SqliteVectorStore <<sealed>> {
+    - <<const>> KeywordEncodingKind : string = "keyword-json"
+    - <<const>> GeminiEncodingKind : string = "gemini-float32-json"
+    + SqliteVectorStore(connectionFactory:ISqliteConnectionFactory, _:SessionMemoryDb, geminiService:GeminiService, logger:ILogger<SqliteVectorStore>)
+    + <<async>> UpsertArticleAsync(sessionId:string, article:WikiArticle, cancellationToken:CancellationToken) : Task
+    + <<async>> SearchAsync(sessionId:string, text:string, count:int, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiMatch>>
+    - <<async>> InsertEmbeddingAsync(connection:SqliteConnection, chunkId:string, sectionText:string, cancellationToken:CancellationToken, transaction:SqliteTransaction) : Task
+    - {static} DeleteStoredArticle(connection:SqliteConnection, articleId:string, transaction:SqliteTransaction) : void
+    - {static} InsertArticle(connection:SqliteConnection, sessionId:string, articleId:string, article:WikiArticle, transaction:SqliteTransaction) : void
+    - {static} InsertSection(connection:SqliteConnection, articleId:string, chunkId:string, section:WikiSection, text:string, transaction:SqliteTransaction) : void
+    - {static} BuildChunkId(articleId:string, section:WikiSection, index:int, text:string) : string
+    - Score(payload:byte[], encodingKind:string, queryTerms:IReadOnlySet<string>, queryVector:float[]?) : double
+    - {static} CosineSimilarity(left:IReadOnlyList<float>, right:IReadOnlyList<float>) : double
+}
+class "ILogger`1"<T> {
+}
+SqliteVectorStore o-> "JsonOptions" JsonSerializerOptions
+SqliteVectorStore --> "_connectionFactory" ISqliteConnectionFactory
+SqliteVectorStore --> "_geminiService" GeminiService
+SqliteVectorStore --> "_logger<SqliteVectorStore>" "ILogger`1"
+@enduml

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentScriptType="application/ecmascript" contentStyleType="text/css" height="84px" preserveAspectRatio="none" style="width:409px;height:84px;" version="1.1" viewBox="0 0 409 84" width="409px" zoomAndPan="magnify"><defs><filter height="300%" id="f1vn9rboavx8tk" width="300%" x="-1" y="-1"><feGaussianBlur result="blurOut" stdDeviation="2.0"/><feColorMatrix in="blurOut" result="blurOut2" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .4 0"/><feOffset dx="4.0" dy="4.0" in="blurOut2" result="blurOut3"/><feBlend in="SourceGraphic" in2="blurOut3" mode="normal"/></filter></defs><g><!--MD5=[11b8f3a1e4285031b97d52b2ed37025e]
+class SqliteConnectionExtensions--><rect fill="#FEFECE" filter="url(#f1vn9rboavx8tk)" height="66.7422" id="SqliteConnectionExtensions" style="stroke: #A80036; stroke-width: 1.5;" width="391" x="7" y="7"/><ellipse cx="111.25" cy="25.9688" fill="#ADD1B2" rx="11" ry="11" style="stroke: #A80036; stroke-width: 1.0;"/><path d="M114.2188,31.6094 Q113.6406,31.9063 113,32.0469 Q112.3594,32.2031 111.6563,32.2031 Q109.1563,32.2031 107.8281,30.5625 Q106.5156,28.9063 106.5156,25.7813 Q106.5156,22.6563 107.8281,21 Q109.1563,19.3438 111.6563,19.3438 Q112.3594,19.3438 113,19.5 Q113.6563,19.6563 114.2188,19.9531 L114.2188,22.6719 Q113.5938,22.0938 113,21.8281 Q112.4063,21.5469 111.7813,21.5469 Q110.4375,21.5469 109.75,22.625 Q109.0625,23.6875 109.0625,25.7813 Q109.0625,27.875 109.75,28.9531 Q110.4375,30.0156 111.7813,30.0156 Q112.4063,30.0156 113,29.75 Q113.5938,29.4688 114.2188,28.8906 L114.2188,31.6094 Z "/><text fill="#000000" font-family="sans-serif" font-size="12" font-style="italic" lengthAdjust="spacingAndGlyphs" textLength="48" x="194.75" y="23.1387">«static»</text><text fill="#000000" font-family="sans-serif" font-size="12" lengthAdjust="spacingAndGlyphs" textLength="174" x="131.75" y="37.1074">SqliteConnectionExtensions</text><line style="stroke: #A80036; stroke-width: 1.5;" x1="8" x2="397" y1="44.9375" y2="44.9375"/><line style="stroke: #A80036; stroke-width: 1.5;" x1="8" x2="397" y1="52.9375" y2="52.9375"/><ellipse cx="18" cy="63.9375" fill="#84BE84" rx="3" ry="3" style="stroke: #038048; stroke-width: 1.0;"/><text fill="#000000" font-family="sans-serif" font-size="11" lengthAdjust="spacingAndGlyphs" text-decoration="underline" textLength="365" x="27" y="67.1479">ExecuteNonQuery(connection:SqliteConnection, sql:string) : void</text><!--MD5=[5e3d04a4666a1aca35da85f1b2216f2f]
+@startuml
+class SqliteConnectionExtensions <<static>> {
+    + {static} ExecuteNonQuery(connection:SqliteConnection, sql:string) : void
+}
+@enduml
+
+PlantUML version 1.2020.02(Sun Mar 01 02:22:07 PST 2020)
+(GPL source distribution)
+Java Runtime: OpenJDK Runtime Environment
+JVM: OpenJDK 64-Bit Server VM
+Java Version: 16.0.2+7-67
+Operating System: Linux
+Default Encoding: UTF-8
+Language: en
+Country: US
+--></g></svg>

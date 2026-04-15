@@ -1,0 +1,40 @@
+@startuml
+class WikiSection <<sealed>> <<record>> {
+    + Heading : string <<get>> <<init>>
+    + Content : string <<get>> <<init>>
+}
+class WikiMatch <<sealed>> <<record>> {
+    + ChunkId : string <<get>> <<init>>
+    + Section : string <<get>> <<init>>
+    + Text : string <<get>> <<init>>
+    + SourceUrl : string <<get>> <<init>>
+    + Score : double <<get>> <<init>>
+}
+class WikiTopicReference <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+    + SourceUrl : string <<get>> <<init>>
+    + Summary : string <<get>> <<init>>
+}
+class WikiArticle <<sealed>> {
+    + WikiArticle(title:string, sourceUrl:string)
+    + Title : string <<get>> <<set>>
+    + SourceUrl : string <<get>> <<set>>
+    + Summary : string <<get>> <<set>>
+    + ArticleId : string <<get>>
+    + <<override>> ToString() : string
+}
+class TextTools <<static>> {
+    + {static} Clean(value:string?) : string
+    + {static} ExtractTerms(text:string, maxTerms:int) : IReadOnlyList<string>
+    + {static} Slugify(value:string) : string
+    + {static} Hash(text:string) : string
+    + {static} TrimToLength(text:string, maxLength:int) : string
+    - {static} AddCurrentTerm(current:StringBuilder, terms:List<string>) : void
+}
+class "List`1"<T> {
+}
+WikiArticle o-> "RetrievedUtc" DateTime
+WikiArticle o-> "RelatedArticles<string>" "List`1"
+WikiArticle o-> "RelatedTopicDetails<WikiTopicReference>" "List`1"
+WikiArticle o-> "Sections<WikiSection>" "List`1"
+@enduml

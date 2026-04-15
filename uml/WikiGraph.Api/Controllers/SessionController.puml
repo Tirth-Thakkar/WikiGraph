@@ -1,0 +1,14 @@
+@startuml
+class SessionController <<sealed>> {
+    + SessionController(sessionRepository:SqliteSessionRepository, wikiSessionService:WikiSessionService)
+    + GetSessions() : ActionResult<IReadOnlyList<SessionSummary>>
+    + CreateSession(input:CreateSessionRequest?) : ActionResult<SessionSummary>
+    + <<async>> AddArticle(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<ActionResult<SessionDetailDto>>
+    + Delete(sessionId:string) : IActionResult
+    + GetSession(sessionId:string) : ActionResult<SessionDetailDto>
+    + GetGraphs(sessionId:string) : ActionResult<IReadOnlyList<GraphDto>>
+}
+ControllerBase <|-- SessionController
+SessionController --> "_sessionRepository" SqliteSessionRepository
+SessionController --> "_wikiSessionService" WikiSessionService
+@enduml
