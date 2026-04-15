@@ -1,0 +1,26 @@
+@startuml
+class SqliteSessionRepository <<sealed>> {
+    - <<const>> DefaultSessionTitle : string = "New session"
+    + SqliteSessionRepository(connectionFactory:ISqliteConnectionFactory, _:SessionMemoryDb)
+    + CreateSession(title:string) : SessionSummary
+    + EnsureSession(sessionId:string, title:string, accessedUtc:DateTime) : void
+    + GetSessions() : IReadOnlyList<SessionSummary>
+    + GetSession(sessionId:string) : SessionDetailDto?
+    + GetGraphs(sessionId:string) : IReadOnlyList<GraphDto>?
+    + SaveTurn(sessionId:string, sessionTitle:string, userMessage:MessageDto, assistantMessage:MessageDto, citations:IReadOnlyList<CitationDto>, graphs:IReadOnlyList<GraphDto>) : void
+    - {static} ResolveSessionTitle(currentTitle:string, requestedTitle:string) : string
+    - {static} InsertSession(connection:SqliteConnection, session:SessionSummary, userId:string, transaction:SqliteTransaction?) : void
+    - {static} UpdateSession(connection:SqliteConnection, sessionId:string, title:string, lastAccessUtc:DateTime, transaction:SqliteTransaction) : void
+    + DeleteSession(sessionId:string) : void
+    - {static} InsertMessage(connection:SqliteConnection, sessionId:string, message:MessageDto, transaction:SqliteTransaction) : long
+    - {static} InsertCitation(connection:SqliteConnection, sessionId:string, assistantMessageId:long, citation:CitationDto, transaction:SqliteTransaction) : void
+    - {static} InsertGraph(connection:SqliteConnection, sessionId:string, graph:GraphDto, transaction:SqliteTransaction) : void
+    - {static} LoadSession(connection:SqliteConnection, sessionId:string) : SessionSummary?
+    - {static} LoadMessages(connection:SqliteConnection, sessionId:string) : IReadOnlyList<MessageDto>
+    - {static} LoadCitations(connection:SqliteConnection, sessionId:string) : IReadOnlyList<CitationDto>
+    - {static} LoadGraphs(connection:SqliteConnection, sessionId:string) : IReadOnlyList<GraphDto>
+    - {static} ReadSessionSummary(reader:SqliteDataReader) : SessionSummary
+}
+SqliteSessionRepository o-> "JsonOptions" JsonSerializerOptions
+SqliteSessionRepository --> "_connectionFactory" ISqliteConnectionFactory
+@enduml

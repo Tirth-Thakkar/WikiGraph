@@ -53,3 +53,65 @@ Run tests:
 ```bash
 dotnet test WikiGraph.Tests/WikiGraph.Tests.csproj
 ```
+
+## UML Diagram Generation (TreeUML via PlantUML)
+
+This repo includes an automated C# to PlantUML workflow for generating class diagrams across the codebase.
+
+Generate UML text files and SVG renders:
+```bash
+./scripts/generate-uml.sh
+```
+
+Generate UML text files to a custom output folder:
+```bash
+./scripts/generate-uml.sh ./uml-output
+```
+
+Enable PNG image rendering (disabled by default):
+```bash
+./scripts/generate-uml.sh --png
+```
+
+Output:
+- Main diagram entry file: `uml/include.puml`
+- Per-file diagrams grouped by namespace/project under `uml/`
+- One SVG image per `.puml` file
+- Optional PNG image per `.puml` file when `--png` is used
+
+Override PNG DPI when PNG export is enabled:
+```bash
+UML_PNG_DPI=600 ./scripts/generate-uml.sh --png
+```
+
+How it works:
+- Uses the local .NET tool `PlantUmlClassDiagramGenerator` (`puml-gen`)
+- Scans C# source and emits PlantUML (`.puml`) files
+- Adds inheritance and association links automatically
+- Excludes generated/build folders like `bin` and `obj`
+
+Dependencies:
+- .NET SDK 10.x
+- Local .NET tools restored from `dotnet-tools.json`
+- PlantUML CLI
+- Graphviz (`dot`)
+
+Install/restore UML generator dependency:
+```bash
+dotnet tool restore
+```
+
+Image rendering runtime requirements:
+- Java Runtime (OpenJDK 17+)
+
+Ubuntu/Debian install example:
+```bash
+sudo apt update
+sudo apt install -y openjdk-17-jre plantuml graphviz
+```
+
+Optional VS Code extensions:
+- `pierre3.csharp-to-plantuml` for direct C# to PlantUML support
+- `jebbs.plantuml` to preview and render `.puml` diagrams
+
+If a PlantUML renderer is configured, open `uml/include.puml` to visualize the full model graph.

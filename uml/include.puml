@@ -1,0 +1,283 @@
+@startuml
+'
+' Layout tuning for large generated diagrams.
+left to right direction
+skinparam linetype ortho
+skinparam ranksep 140
+skinparam nodesep 90
+skinparam padding 10
+skinparam classAttributeIconSize 0
+class SessionSummary <<sealed>> <<record>> {
+    + SessionId : string <<get>> <<init>>
+    + Title : string <<get>> <<init>>
+}
+class SessionDetailDto <<sealed>> <<record>> {
+}
+class MessageDto <<sealed>> <<record>> {
+    + Role : string <<get>> <<init>>
+    + Content : string <<get>> <<init>>
+}
+class CitationDto <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+    + Url : string <<get>> <<init>>
+    + Section : string? <<get>> <<init>> = null
+    + ChunkId : string? <<get>> <<init>> = null
+}
+class GraphNodeDto <<sealed>> <<record>> {
+    + Id : string <<get>> <<init>>
+    + Label : string <<get>> <<init>>
+    + Weight : int <<get>> <<init>>
+}
+class GraphEdgeDto <<sealed>> <<record>> {
+    + Source : string <<get>> <<init>>
+    + Target : string <<get>> <<init>>
+    + Relation : string <<get>> <<init>>
+}
+class GraphDto <<sealed>> <<record>> {
+    + Topic : string <<get>> <<init>>
+}
+class CreateSessionRequest <<sealed>> <<record>> {
+    + Title : string? <<get>> <<init>>
+}
+class AddWikiArticleRequest <<sealed>> <<record>> {
+    + Topic : string <<get>> <<init>>
+    + WikipediaUrl : string? <<get>> <<init>>
+}
+class "IReadOnlyList`1"<T> {
+}
+SessionSummary --> "CreatedUtc" DateTime
+SessionSummary --> "LastAccessUtc" DateTime
+SessionDetailDto --> "Session" SessionSummary
+SessionDetailDto --> "Messages<MessageDto>" "IReadOnlyList`1"
+SessionDetailDto --> "Citations<CitationDto>" "IReadOnlyList`1"
+SessionDetailDto --> "Graphs<GraphDto>" "IReadOnlyList`1"
+MessageDto --> "CreatedUtc" DateTime
+GraphDto --> "Nodes<GraphNodeDto>" "IReadOnlyList`1"
+GraphDto --> "Edges<GraphEdgeDto>" "IReadOnlyList`1"
+class SessionStoreTests {
+    + <<async>> AddArticle_PersistsSessionArtifacts() : Task
+    + CreateSession_ReturnsSortedSessions() : void
+}
+class TestConnectionFactory <<sealed>> {
+    + OpenConnection() : SqliteConnection
+}
+SessionStoreTests +-- TestConnectionFactory
+ISqliteConnectionFactory <|-- TestConnectionFactory
+class ApiEndpointTests {
+    + <<async>> AddArticleEndpoint_ReturnsUpdatedSession() : Task
+    + <<async>> GetGraphsEndpoint_ReturnsSessionGraphs() : Task
+    - {static} BuildController() : SessionController
+}
+class TestConnectionFactory <<sealed>> {
+    + OpenConnection() : SqliteConnection
+}
+ApiEndpointTests +-- TestConnectionFactory
+ISqliteConnectionFactory <|-- TestConnectionFactory
+class "Add`1"<T> {
+}
+class ApiAssemblyMarker <<sealed>> {
+}
+class Program <<partial>> {
+}
+class ApiClient <<sealed>> {
+    + ApiClient(httpClient:HttpClient)
+    + <<async>> GetSessionsAsync(cancellationToken:CancellationToken) : Task<IReadOnlyList<SessionSummary>>
+    + <<async>> CreateSessionAsync(request:CreateSessionRequest, cancellationToken:CancellationToken) : Task<SessionSummary>
+    + GetSessionAsync(sessionId:string, cancellationToken:CancellationToken) : Task<SessionDetailDto?>
+    + <<async>> GetGraphsAsync(sessionId:string, cancellationToken:CancellationToken) : Task<IReadOnlyList<GraphDto>>
+    + <<async>> AddArticleAsync(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<SessionDetailDto?>
+}
+ApiClient --> "_httpClient" HttpClient
+class ServiceCollectionExtensions <<static>> {
+    + {static} AddWikiGraphApi(services:IServiceCollection, configuration:IConfiguration) : IServiceCollection
+    - {static} ResolveGeminiOptions(configuration:IConfiguration) : GeminiOptions
+}
+class GeminiOptions <<sealed>> {
+    + ApiKey : string <<get>> <<set>>
+    + TextModel : string <<get>> <<set>> = "gemini-2.5-flash"
+    + EmbeddingModel : string <<get>> <<set>> = "gemini-embedding-001"
+    + EmbeddingDimensions : int? <<get>> <<set>>
+    + IsEnabled : bool <<get>>
+}
+class HealthController <<sealed>> {
+    + Get() : IActionResult
+}
+ControllerBase <|-- HealthController
+class SessionController <<sealed>> {
+    + SessionController(sessionRepository:SqliteSessionRepository, wikiSessionService:WikiSessionService)
+    + GetSessions() : ActionResult<IReadOnlyList<SessionSummary>>
+    + CreateSession(input:CreateSessionRequest?) : ActionResult<SessionSummary>
+    + <<async>> AddArticle(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<ActionResult<SessionDetailDto>>
+    + Delete(sessionId:string) : IActionResult
+    + GetSession(sessionId:string) : ActionResult<SessionDetailDto>
+    + GetGraphs(sessionId:string) : ActionResult<IReadOnlyList<GraphDto>>
+}
+ControllerBase <|-- SessionController
+SessionController --> "_sessionRepository" SqliteSessionRepository
+SessionController --> "_wikiSessionService" WikiSessionService
+class SessionMemoryDb <<sealed>> {
+    + <<const>> DefaultUserId : string = "local-device"
+    + SessionMemoryDb(connectionFactory:ISqliteConnectionFactory)
+    - InitializeSchema() : void
+    - {static} EnsureColumn(connection:SqliteConnection, tableName:string, columnName:string, columnDefinition:string) : void
+}
+SessionMemoryDb --> "_connectionFactory" ISqliteConnectionFactory
+class SqliteVectorStore <<sealed>> {
+    - <<const>> KeywordEncodingKind : string = "keyword-json"
+    - <<const>> GeminiEncodingKind : string = "gemini-float32-json"
+    + SqliteVectorStore(connectionFactory:ISqliteConnectionFactory, _:SessionMemoryDb, geminiService:GeminiService, logger:ILogger<SqliteVectorStore>)
+    + <<async>> UpsertArticleAsync(sessionId:string, article:WikiArticle, cancellationToken:CancellationToken) : Task
+    + <<async>> SearchAsync(sessionId:string, text:string, count:int, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiMatch>>
+    - <<async>> InsertEmbeddingAsync(connection:SqliteConnection, chunkId:string, sectionText:string, cancellationToken:CancellationToken, transaction:SqliteTransaction) : Task
+    - {static} DeleteStoredArticle(connection:SqliteConnection, articleId:string, transaction:SqliteTransaction) : void
+    - {static} InsertArticle(connection:SqliteConnection, sessionId:string, articleId:string, article:WikiArticle, transaction:SqliteTransaction) : void
+    - {static} InsertSection(connection:SqliteConnection, articleId:string, chunkId:string, section:WikiSection, text:string, transaction:SqliteTransaction) : void
+    - {static} BuildChunkId(articleId:string, section:WikiSection, index:int, text:string) : string
+    - Score(payload:byte[], encodingKind:string, queryTerms:IReadOnlySet<string>, queryVector:float[]?) : double
+    - {static} CosineSimilarity(left:IReadOnlyList<float>, right:IReadOnlyList<float>) : double
+}
+class "ILogger`1"<T> {
+}
+SqliteVectorStore o-> "JsonOptions" JsonSerializerOptions
+SqliteVectorStore --> "_connectionFactory" ISqliteConnectionFactory
+SqliteVectorStore --> "_geminiService" GeminiService
+SqliteVectorStore --> "_logger<SqliteVectorStore>" "ILogger`1"
+class SqliteSessionRepository <<sealed>> {
+    - <<const>> DefaultSessionTitle : string = "New session"
+    + SqliteSessionRepository(connectionFactory:ISqliteConnectionFactory, _:SessionMemoryDb)
+    + CreateSession(title:string) : SessionSummary
+    + EnsureSession(sessionId:string, title:string, accessedUtc:DateTime) : void
+    + GetSessions() : IReadOnlyList<SessionSummary>
+    + GetSession(sessionId:string) : SessionDetailDto?
+    + GetGraphs(sessionId:string) : IReadOnlyList<GraphDto>?
+    + SaveTurn(sessionId:string, sessionTitle:string, userMessage:MessageDto, assistantMessage:MessageDto, citations:IReadOnlyList<CitationDto>, graphs:IReadOnlyList<GraphDto>) : void
+    - {static} ResolveSessionTitle(currentTitle:string, requestedTitle:string) : string
+    - {static} InsertSession(connection:SqliteConnection, session:SessionSummary, userId:string, transaction:SqliteTransaction?) : void
+    - {static} UpdateSession(connection:SqliteConnection, sessionId:string, title:string, lastAccessUtc:DateTime, transaction:SqliteTransaction) : void
+    + DeleteSession(sessionId:string) : void
+    - {static} InsertMessage(connection:SqliteConnection, sessionId:string, message:MessageDto, transaction:SqliteTransaction) : long
+    - {static} InsertCitation(connection:SqliteConnection, sessionId:string, assistantMessageId:long, citation:CitationDto, transaction:SqliteTransaction) : void
+    - {static} InsertGraph(connection:SqliteConnection, sessionId:string, graph:GraphDto, transaction:SqliteTransaction) : void
+    - {static} LoadSession(connection:SqliteConnection, sessionId:string) : SessionSummary?
+    - {static} LoadMessages(connection:SqliteConnection, sessionId:string) : IReadOnlyList<MessageDto>
+    - {static} LoadCitations(connection:SqliteConnection, sessionId:string) : IReadOnlyList<CitationDto>
+    - {static} LoadGraphs(connection:SqliteConnection, sessionId:string) : IReadOnlyList<GraphDto>
+    - {static} ReadSessionSummary(reader:SqliteDataReader) : SessionSummary
+}
+SqliteSessionRepository o-> "JsonOptions" JsonSerializerOptions
+SqliteSessionRepository --> "_connectionFactory" ISqliteConnectionFactory
+interface ISqliteConnectionFactory {
+    OpenConnection() : SqliteConnection
+}
+class SqliteConnectionFactory <<sealed>> {
+    - <<readonly>> _connectionString : string
+    + SqliteConnectionFactory(configuration:IConfiguration)
+    + OpenConnection() : SqliteConnection
+}
+ISqliteConnectionFactory <|-- SqliteConnectionFactory
+class SqliteConnectionExtensions <<static>> {
+    + {static} ExecuteNonQuery(connection:SqliteConnection, sql:string) : void
+}
+class WikipediaService <<sealed>> {
+    + WikipediaService(httpClient:HttpClient, logger:ILogger<WikipediaService>)
+    + <<async>> GetArticleAsync(topic:string, wikipediaUrl:string?, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> SearchBestTitleAsync(requestedTitle:string, wikipediaUrl:string, cancellationToken:CancellationToken) : Task<string>
+    - <<async>> LoadPageAsync(title:string, includeLinks:bool, cancellationToken:CancellationToken) : Task<JsonElement?>
+    - <<async>> BuildArticleAsync(page:JsonElement, originalTopic:string, fallbackUrl:string, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> LoadRelatedTopicsAsync(linkedTitles:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiTopicReference>>
+    - <<async>> GetJsonDocumentAsync(relativeUrl:string, cancellationToken:CancellationToken) : Task<JsonDocument>
+    - {static} AddSections(article:WikiArticle, extract:string) : void
+    - {static} ReadLinkedTitles(page:JsonElement, articleTitle:string) : IReadOnlyList<string>
+    - {static} BuildSeedRelatedTopics(title:string, originalTopic:string) : IReadOnlyList<WikiTopicReference>
+    - {static} BuildFallbackArticle(title:string, topic:string, wikipediaUrl:string) : WikiArticle
+    - {static} ResolveRequestedTitle(topic:string, wikipediaUrl:string?) : string
+    - {static} ResolveUrl(title:string, wikipediaUrl:string?) : string
+    - {static} ReadString(element:JsonElement, propertyName:string) : string?
+    - {static} FirstSentence(text:string) : string
+    - {static} SplitParagraphs(text:string) : IEnumerable<string>
+    - {static} SplitSentences(text:string) : IEnumerable<string>
+    - {static} Capitalize(value:string) : string
+}
+class "ILogger`1"<T> {
+}
+WikipediaService --> "_httpClient" HttpClient
+WikipediaService --> "_logger<WikipediaService>" "ILogger`1"
+class WikiSection <<sealed>> <<record>> {
+    + Heading : string <<get>> <<init>>
+    + Content : string <<get>> <<init>>
+}
+class WikiMatch <<sealed>> <<record>> {
+    + ChunkId : string <<get>> <<init>>
+    + Section : string <<get>> <<init>>
+    + Text : string <<get>> <<init>>
+    + SourceUrl : string <<get>> <<init>>
+    + Score : double <<get>> <<init>>
+}
+class WikiTopicReference <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+    + SourceUrl : string <<get>> <<init>>
+    + Summary : string <<get>> <<init>>
+}
+class WikiArticle <<sealed>> {
+    + WikiArticle(title:string, sourceUrl:string)
+    + Title : string <<get>> <<set>>
+    + SourceUrl : string <<get>> <<set>>
+    + Summary : string <<get>> <<set>>
+    + ArticleId : string <<get>>
+    + <<override>> ToString() : string
+}
+class TextTools <<static>> {
+    + {static} Clean(value:string?) : string
+    + {static} ExtractTerms(text:string, maxTerms:int) : IReadOnlyList<string>
+    + {static} Slugify(value:string) : string
+    + {static} Hash(text:string) : string
+    + {static} TrimToLength(text:string, maxLength:int) : string
+    - {static} AddCurrentTerm(current:StringBuilder, terms:List<string>) : void
+}
+class "List`1"<T> {
+}
+WikiArticle o-> "RetrievedUtc" DateTime
+WikiArticle o-> "RelatedArticles<string>" "List`1"
+WikiArticle o-> "RelatedTopicDetails<WikiTopicReference>" "List`1"
+WikiArticle o-> "Sections<WikiSection>" "List`1"
+class WikiSessionService <<sealed>> {
+    + WikiSessionService(wikipediaService:WikipediaService, geminiService:GeminiService, sessionRepository:SqliteSessionRepository, vectorStore:SqliteVectorStore)
+    + <<async>> AddArticleAsync(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<SessionDetailDto>
+    - {static} BuildSearchText(prompt:string, messages:IReadOnlyList<MessageDto>) : string
+    - {static} BuildUserMessage(topic:string, wikipediaUrl:string, articleTitle:string) : string
+    - {static} BuildCitations(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<CitationDto>
+    - {static} BuildGraphs(prompt:string, article:WikiArticle, relatedTopics:IReadOnlyList<string>, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<GraphDto>
+    - {static} BuildSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<string>
+    - {static} SplitGraphLabels(value:string) : IEnumerable<string>
+    - {static} InferTitle(prompt:string) : string
+}
+WikiSessionService --> "_wikipediaService" WikipediaService
+WikiSessionService --> "_geminiService" GeminiService
+WikiSessionService --> "_sessionRepository" SqliteSessionRepository
+WikiSessionService --> "_vectorStore" SqliteVectorStore
+class GeminiService <<sealed>> {
+    - <<readonly>> _chatCompletionService : IChatCompletionService?
+    - <<readonly>> _embeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>?
+    + GeminiService(options:IOptions<GeminiOptions>, logger:ILogger<GeminiService>)
+    + GeminiService(serviceProvider:IServiceProvider, options:IOptions<GeminiOptions>, logger:ILogger<GeminiService>)
+    + <<async>> GenerateReplyAsync(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>, cancellationToken:CancellationToken) : Task<GeminiReply>
+    + <<async>> CreateEmbeddingAsync(text:string, cancellationToken:CancellationToken) : Task<float[]?>
+    - {static} BuildChatHistory(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>) : ChatHistory
+    - {static} BuildFallbackReply(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>) : GeminiReply
+    - {static} ReadReply(responseText:string?, article:WikiArticle, prompt:string, matches:IReadOnlyList<WikiMatch>) : GeminiReply?
+    - {static} TryParseReply(text:string, prompt:string, article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : GeminiReply?
+    - {static} BuildFallbackTopics(prompt:string, article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<string>
+    - {static} StripCodeFence(text:string) : string
+    - {static} ReadGeneratedText(json:string) : string?
+}
+class GeminiReply <<sealed>> <<record>> {
+    + Answer : string <<get>> <<init>>
+}
+class "ILogger`1"<T> {
+}
+class "IReadOnlyList`1"<T> {
+}
+GeminiService --> "_options" GeminiOptions
+GeminiService --> "_logger<GeminiService>" "ILogger`1"
+GeminiReply --> "RelatedTopics<string>" "IReadOnlyList`1"
+@enduml
