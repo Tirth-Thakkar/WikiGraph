@@ -75,11 +75,12 @@ if [[ -f "$INCLUDE_PUML" ]]; then
     head -n 1 "$INCLUDE_PUML"
     cat <<'LAYOUT'
 '
-' Layout tuning for large generated diagrams.
+' Use a built-in PlantUML theme preset. 
+!theme mars
 left to right direction
 skinparam linetype ortho
 skinparam ranksep 140
-skinparam nodesep 90
+skinparam nodesep 140
 skinparam padding 10
 skinparam classAttributeIconSize 0
 LAYOUT
