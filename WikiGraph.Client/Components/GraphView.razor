@@ -1,8 +1,22 @@
-@if (Graphs.Count == 0)
-{
-    <div class="empty-card">
-        <strong>No graph yet</strong>
-        <p class="muted">Topic graphs appear once the assistant extracts relationships from the session context.</p>
+@inject IJSRuntime JSRuntime
+
+<div class="session-panel details-panel">
+    <div class="details-header">
+        <p>@(CurrentGraph?.Topic ?? "Session details")</p>
+
+        <div class="details-toggle">
+            <button type="button"
+                    class="toggle-button @(activeView == DetailView.Citations ? "active" : "")"
+                    @onclick="() => SetView(DetailView.Citations)">
+                Citations
+            </button>
+
+            <button type="button"
+                    class="toggle-button @(activeView == DetailView.Graph ? "active" : "")"
+                    @onclick="() => SetView(DetailView.Graph)">
+                Graph
+            </button>
+        </div>
     </div>
 }
 else
@@ -46,8 +60,65 @@ else
 
 @code {
     [Parameter]
+    public GraphDto? CurrentGraph { get; set; }
+
+    [Parameter]
+    public EventCallback<GraphDto?> CurrentGraphChanged { get; set; }
+
+    [Parameter]
     public IReadOnlyList<GraphDto> Graphs { get; set; } = [];
 
-    private static string ResolveLabel(GraphDto graph, string nodeId) =>
-        graph.Nodes.FirstOrDefault(node => node.Id == nodeId)?.Label ?? nodeId;
+    [Parameter]
+    public IReadOnlyList<CitationDto> Citations { get; set; } = [];
+
+    private ElementReference canvasReference;
+    private string? _lastTopic;
+    private DetailView activeView = DetailView.Citations;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (activeView != DetailView.Graph || CurrentGraph is null)
+            return;
+
+        if (CurrentGraph.Topic == _lastTopic)
+            return;
+
+        _lastTopic = CurrentGraph.Topic;
+
+        await JSRuntime.InvokeVoidAsync("graphCanvas.renderGraph", canvasReference, CurrentGraph);
+    }
+
+    private async Task SetView(DetailView view)
+    {
+        activeView = view;
+
+        if (view == DetailView.Graph)
+        {
+            _lastTopic = null;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnGraphSelected(ChangeEventArgs e)
+    {
+        if (e.Value is null)
+            return;
+
+        if (!int.TryParse(e.Value.ToString(), out var index))
+            return;
+
+        if (index < 0 || index >= Graphs.Count)
+            return;
+
+        _lastTopic = null;
+        await CurrentGraphChanged.InvokeAsync(Graphs[index]);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private enum DetailView
+    {
+        Citations,
+        Graph
+    }
 }

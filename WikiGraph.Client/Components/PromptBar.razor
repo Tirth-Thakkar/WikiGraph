@@ -1,0 +1,64 @@
+
+
+
+@* <span class="status-pill @(Busy ? "busy" : "ready")">@(Busy ? "Syncing" : "Ready")</span> *@
+
+@if (!string.IsNullOrWhiteSpace(ErrorMsg))
+{
+<div class="error-banner">@ErrorMsg</div>
+}
+
+<form class="prompt-bar" @onsubmit="HandleSubmit" @onsubmit:preventDefault="true">
+    <div class = "prompt-row">
+        <textarea class="prompt-input"
+                value="@Prompt"
+                @oninput="HandlePromptChanged"
+                aria-label="Prompt"
+                placeholder="Ask about a topic, concept, person, or event"
+                disabled="@Busy">
+        </textarea>
+        <button class="send" type="submit" disabled="@Busy">@(Busy ? "Sending..." : "Submit")
+
+        </button>
+    </div>
+
+    <div class= "prompt-url">
+    <input class="prompt-url-input"
+            value="@WikiUrl"
+            @oninput="HandleSourceUrlChanged"
+            aria-label="Wikipedia URL"
+            placeholder="https://en.wikipedia.org/wiki/..."
+            disabled="@Busy" />
+    </div>
+</form>
+
+@code {
+    [Parameter]
+    public string Prompt { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> PromptChanged { get; set; }
+
+    [Parameter]
+    public string WikiUrl { get; set; } = string.Empty;
+
+    [Parameter]
+    public EventCallback<string> WikiUrlChanged { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public string? ErrorMsg { get; set; }
+
+    [Parameter]
+    public EventCallback OnSubmit { get; set; }
+
+    private Task HandleSubmit() => OnSubmit.InvokeAsync();
+
+    private Task HandlePromptChanged(ChangeEventArgs args) =>
+        PromptChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+
+    private Task HandleSourceUrlChanged(ChangeEventArgs args) =>
+        WikiUrlChanged.InvokeAsync(args.Value?.ToString() ?? string.Empty);
+}

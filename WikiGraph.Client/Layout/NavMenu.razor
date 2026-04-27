@@ -1,6 +1,26 @@
+
+@using System.Security
+@using System.Data.SqlTypes
+@using WikiGraph.Client.Pages
+@inject ApiClient ApiClient
+
 <nav class="nav">
-    <a href="/" class="nav-item active">Overview</a>
-    <a href="#sessions" class="nav-item">Sessions</a>
-    <a href="#thread" class="nav-item">Chat</a>
-    <a href="#graphs" class="nav-item">Graphs</a>
+
+    @foreach(SessionSummary session in SessionSummaries){
+         <NavLink class = "nav-pill" href="@($"/Sessions/{session.SessionId}")">@session.Title</NavLink>
+    }
 </nav>
+
+@code{
+
+    public List<SessionSummary> SessionSummaries = [];
+    protected override async Task OnInitializedAsync(){
+       await LoadSessions();
+    } 
+    protected async Task LoadSessions(){
+        
+        IReadOnlyList<SessionSummary>? sessions = await ApiClient.GetSessionsAsync();
+        SessionSummaries.AddRange(sessions);
+    } 
+
+}
