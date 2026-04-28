@@ -1,0 +1,5 @@
+@startuml
+class SqliteConnectionExtensions <<static>> {
+    + {static} ExecuteNonQuery(connection:SqliteConnection, sql:string) : void
+}
+@enduml

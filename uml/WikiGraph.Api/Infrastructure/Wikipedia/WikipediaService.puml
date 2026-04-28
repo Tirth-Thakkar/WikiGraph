@@ -1,0 +1,26 @@
+@startuml
+class WikipediaService <<sealed>> {
+    + WikipediaService(httpClient:HttpClient, logger:ILogger<WikipediaService>)
+    + <<async>> GetArticleAsync(topic:string, wikipediaUrl:string?, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> SearchBestTitleAsync(requestedTitle:string, wikipediaUrl:string, cancellationToken:CancellationToken) : Task<string>
+    - <<async>> LoadPageAsync(title:string, includeLinks:bool, cancellationToken:CancellationToken) : Task<JsonElement?>
+    - <<async>> BuildArticleAsync(page:JsonElement, originalTopic:string, fallbackUrl:string, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> LoadRelatedTopicsAsync(linkedTitles:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiTopicReference>>
+    - <<async>> GetJsonDocumentAsync(relativeUrl:string, cancellationToken:CancellationToken) : Task<JsonDocument>
+    - {static} AddSections(article:WikiArticle, extract:string) : void
+    - {static} ReadLinkedTitles(page:JsonElement, articleTitle:string) : IReadOnlyList<string>
+    - {static} BuildSeedRelatedTopics(title:string, originalTopic:string) : IReadOnlyList<WikiTopicReference>
+    - {static} BuildFallbackArticle(title:string, topic:string, wikipediaUrl:string) : WikiArticle
+    - {static} ResolveRequestedTitle(topic:string, wikipediaUrl:string?) : string
+    - {static} ResolveUrl(title:string, wikipediaUrl:string?) : string
+    - {static} ReadString(element:JsonElement, propertyName:string) : string?
+    - {static} FirstSentence(text:string) : string
+    - {static} SplitParagraphs(text:string) : IEnumerable<string>
+    - {static} SplitSentences(text:string) : IEnumerable<string>
+    - {static} Capitalize(value:string) : string
+}
+class "ILogger`1"<T> {
+}
+WikipediaService --> "_httpClient" HttpClient
+WikipediaService --> "_logger<WikipediaService>" "ILogger`1"
+@enduml

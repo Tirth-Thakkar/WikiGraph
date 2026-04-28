@@ -1,0 +1,6 @@
+@startuml
+class HealthController <<sealed>> {
+    + Get() : IActionResult
+}
+ControllerBase <|-- HealthController
+@enduml

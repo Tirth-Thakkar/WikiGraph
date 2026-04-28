@@ -1,0 +1,12 @@
+@startuml
+class ApiEndpointTests {
+    + <<async>> AddArticleEndpoint_ReturnsUpdatedSession() : Task
+    + <<async>> GetGraphsEndpoint_ReturnsSessionGraphs() : Task
+    - {static} BuildController() : SessionController
+}
+class TestConnectionFactory <<sealed>> {
+    + OpenConnection() : SqliteConnection
+}
+ApiEndpointTests +-- TestConnectionFactory
+ISqliteConnectionFactory <|-- TestConnectionFactory
+@enduml

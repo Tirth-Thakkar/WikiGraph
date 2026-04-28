@@ -1,0 +1,6 @@
+@startuml
+class ServiceCollectionExtensions <<static>> {
+    + {static} AddWikiGraphApi(services:IServiceCollection, configuration:IConfiguration) : IServiceCollection
+    - {static} ResolveGeminiOptions(configuration:IConfiguration) : GeminiOptions
+}
+@enduml

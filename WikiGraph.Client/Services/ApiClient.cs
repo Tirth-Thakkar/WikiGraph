@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using System.Net.Mime;
 using WikiGraph.Contracts;
 
 namespace WikiGraph.Client.Services;
@@ -22,6 +23,15 @@ public sealed class ApiClient
         return (await response.Content.ReadFromJsonAsync<SessionSummary>(cancellationToken))!;
     }
 
+    public async Task<string> DeleteSessionAsync(string sessionId)
+    {
+        var response = await _httpClient.DeleteAsync($"api/sessions/{sessionId}");
+        response.EnsureSuccessStatusCode();
+        
+        var content = await response.Content.ReadFromJsonAsync<string>(); 
+        
+        return content; 
+    }
     public Task<SessionDetailDto?> GetSessionAsync(string sessionId, CancellationToken cancellationToken = default) =>
         _httpClient.GetFromJsonAsync<SessionDetailDto>($"api/sessions/{sessionId}", cancellationToken);
 

@@ -8,44 +8,63 @@
 @using System.Runtime.ConstrainedExecution
 @using System.Runtime.CompilerServices
 
-<h1>@sessionTitle</h1>
-
-<CitationList Citations="sessionCitations"/>
-
-<GraphView Graphs="sessionGraphs"/>
-
-@foreach(MessageDto message in sessionMessages){
-    string role = DetermineRole(message.Role);
-    string avatar = string.Empty;
-    @if(role.Equals("user")){avatar = "You";}
-    else{avatar = "AI"; }
-    <article class="message @role">
-        <div class="message-avatar">@avatar</div>
-        <div class="message-bubble">
-            <div class = "message-meta">
-                <span class="role">@role</span>
-                <span class = "timestamp">@message.CreatedUtc.ToLocalTime().ToString()</span>
-            </div>
-            <p>@message.Content</p>
+<PageTitle>WikiGraph: @sessionTitle</PageTitle>
+<div class ="session-workspace">
+    <div class = "session-primary">
+        <div class = "session-messages">
+            @foreach(MessageDto message in sessionMessages){
+                string role = DetermineRole(message.Role);
+                string avatar = string.Empty;
+                @if(role.Equals("user")){avatar = "You";}
+                else{avatar = "AI"; }
+                <article class="message @role">
+                    <div class="message-avatar">
+                        @avatar
+                    </div>
+                    <div class="message-bubble">
+                        <div class = "message-meta">
+                            <span class="role">@role</span>
+                            <span class = "timestamp">@message.CreatedUtc.ToLocalTime().ToString()</span>
+                        </div>
+                        <p>@message.Content</p>
+                    </div>
+                </article>
+            }
         </div>
-    </article>
-}
+        <div class="prompt-dock">
+            <PromptBar
+            Prompt="@sessionPrompt"
+            PromptChanged="OnPromptChanged"
+            WikiUrl="@wikiUrl"
+            WikiUrlChanged="OnSourceUrlChanged"
+            Busy="@busy"
+            ErrorMsg="@errorMsg"
+            OnSubmit="SubmitPrompt">
+            </PromptBar>
+        </div>
+    </div>
+    <div class="session-secondary">
+        <GraphView CurrentGraph="currentGraph"
+           CurrentGraphChanged="OnCurrentGraphChanged"
+           Graphs="sessionGraphs"
+           Citations="sessionCitations" />
+    </div>
+</div>
 
-    <ChatThread
-    Prompt="@sessionPrompt"
-    PromptChanged="OnPromptChanged"
-    WikiUrl="@wikiUrl"
-    WikiUrlChanged="OnSourceUrlChanged"
-    Busy="busy"
-    ErrorMsg="@errorMsg"
-    OnSubmit="SubmitPrompt" 
-    /> 
+    
+        
+
 
 @inject ApiClient ApiClient
 
 @code{
     
- 
+    private Task OnCurrentGraphChanged(GraphDto? graph)
+    {
+        currentGraph = graph;
+        return Task.CompletedTask;
+    }
+
     [Parameter]
     public string? SessionId { get; set; }
 
@@ -60,10 +79,11 @@
        most up to date messages within each session*@
     private List<MessageDto> sessionMessages =[];
     private List<CitationDto> sessionCitations = [];
-
+    private List<GraphDto> sessionGraphs =[];  
+    
+    private GraphDto? currentGraph;
     private string sessionTitle = string.Empty;
 
-    private List<GraphDto> sessionGraphs =[];  
     @* Session Prompt Variables and Session *@
     public string sessionPrompt = string.Empty;
     public string wikiUrl = string.Empty; 
@@ -118,6 +138,7 @@
         sessionMessages.AddRange(CurrentSession.Messages);
         sessionCitations.AddRange(CurrentSession.Citations);
         sessionGraphs.AddRange(CurrentSession.Graphs);
+        currentGraph = sessionGraphs.LastOrDefault();
     }
 
     @* When the prompt is changed run these methods so the page copy of promt can be updated *@

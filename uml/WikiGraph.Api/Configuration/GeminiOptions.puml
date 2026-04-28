@@ -1,0 +1,9 @@
+@startuml
+class GeminiOptions <<sealed>> {
+    + ApiKey : string <<get>> <<set>>
+    + TextModel : string <<get>> <<set>> = "gemini-2.5-flash"
+    + EmbeddingModel : string <<get>> <<set>> = "gemini-embedding-001"
+    + EmbeddingDimensions : int? <<get>> <<set>>
+    + IsEnabled : bool <<get>>
+}
+@enduml

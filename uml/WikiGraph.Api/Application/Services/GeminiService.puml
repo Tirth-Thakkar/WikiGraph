@@ -1,0 +1,27 @@
+@startuml
+class GeminiService <<sealed>> {
+    - <<readonly>> _chatCompletionService : IChatCompletionService?
+    - <<readonly>> _embeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>?
+    + GeminiService(options:IOptions<GeminiOptions>, logger:ILogger<GeminiService>)
+    + GeminiService(serviceProvider:IServiceProvider, options:IOptions<GeminiOptions>, logger:ILogger<GeminiService>)
+    + <<async>> GenerateReplyAsync(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>, cancellationToken:CancellationToken) : Task<GeminiReply>
+    + <<async>> CreateEmbeddingAsync(text:string, cancellationToken:CancellationToken) : Task<float[]?>
+    - {static} BuildChatHistory(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>) : ChatHistory
+    - {static} BuildFallbackReply(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>) : GeminiReply
+    - {static} ReadReply(responseText:string?, article:WikiArticle, prompt:string, matches:IReadOnlyList<WikiMatch>) : GeminiReply?
+    - {static} TryParseReply(text:string, prompt:string, article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : GeminiReply?
+    - {static} BuildFallbackTopics(prompt:string, article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<string>
+    - {static} StripCodeFence(text:string) : string
+    - {static} ReadGeneratedText(json:string) : string?
+}
+class GeminiReply <<sealed>> <<record>> {
+    + Answer : string <<get>> <<init>>
+}
+class "ILogger`1"<T> {
+}
+class "IReadOnlyList`1"<T> {
+}
+GeminiService --> "_options" GeminiOptions
+GeminiService --> "_logger<GeminiService>" "ILogger`1"
+GeminiReply --> "RelatedTopics<string>" "IReadOnlyList`1"
+@enduml

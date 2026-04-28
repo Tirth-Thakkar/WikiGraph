@@ -1,0 +1,49 @@
+@startuml
+class SessionSummary <<sealed>> <<record>> {
+    + SessionId : string <<get>> <<init>>
+    + Title : string <<get>> <<init>>
+}
+class SessionDetailDto <<sealed>> <<record>> {
+}
+class MessageDto <<sealed>> <<record>> {
+    + Role : string <<get>> <<init>>
+    + Content : string <<get>> <<init>>
+}
+class CitationDto <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+    + Url : string <<get>> <<init>>
+    + Section : string? <<get>> <<init>> = null
+    + ChunkId : string? <<get>> <<init>> = null
+}
+class GraphNodeDto <<sealed>> <<record>> {
+    + Id : string <<get>> <<init>>
+    + Label : string <<get>> <<init>>
+    + Weight : int <<get>> <<init>>
+}
+class GraphEdgeDto <<sealed>> <<record>> {
+    + Source : string <<get>> <<init>>
+    + Target : string <<get>> <<init>>
+    + Relation : string <<get>> <<init>>
+}
+class GraphDto <<sealed>> <<record>> {
+    + Topic : string <<get>> <<init>>
+}
+class CreateSessionRequest <<sealed>> <<record>> {
+    + Title : string? <<get>> <<init>>
+}
+class AddWikiArticleRequest <<sealed>> <<record>> {
+    + Topic : string <<get>> <<init>>
+    + WikipediaUrl : string? <<get>> <<init>>
+}
+class "IReadOnlyList`1"<T> {
+}
+SessionSummary --> "CreatedUtc" DateTime
+SessionSummary --> "LastAccessUtc" DateTime
+SessionDetailDto --> "Session" SessionSummary
+SessionDetailDto --> "Messages<MessageDto>" "IReadOnlyList`1"
+SessionDetailDto --> "Citations<CitationDto>" "IReadOnlyList`1"
+SessionDetailDto --> "Graphs<GraphDto>" "IReadOnlyList`1"
+MessageDto --> "CreatedUtc" DateTime
+GraphDto --> "Nodes<GraphNodeDto>" "IReadOnlyList`1"
+GraphDto --> "Edges<GraphEdgeDto>" "IReadOnlyList`1"
+@enduml
