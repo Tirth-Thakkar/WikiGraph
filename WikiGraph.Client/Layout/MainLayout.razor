@@ -1,16 +1,26 @@
+@using WikiGraph.Client.Pages
 @inherits LayoutComponentBase
-
-<div class="shell">
+@inject NavigationManager NavigationManager
+<div class="shell @getUrl()">
     <aside class="sidebar">
         <div class="brand">
             <div class="logo">WG</div>
             <div>
                 <div class="brand-title">WikiGraph</div>
-                <div class="brand-subtitle">Research chat client</div>
+                <div class="brand-subtitle">Reasearch Assistant</div>
             </div>
         </div>
-        <p class="sidebar-copy">Trace answers back to citations and relationship graphs built from Wikipedia context.</p>
-        <NavMenu />
+        <p class="sidebar-copy">Generate citations and topic graphs all from a single prompt</p>
+        
+        <div class = "sidebar-home-link">
+            <NavLink href="/" class = "nav-pill" Match="NavLinkMatch.All">
+                New Session
+            </NavLink>
+        </div>
+
+        <div class="sidebar-nav-scroll">
+            <NavMenu/>
+        </div>
         <div class="sidebar-footer">
             <div class="sidebar-note">API target <code>localhost:5052</code></div>
         </div>
@@ -19,3 +29,15 @@
         @Body
     </main>
 </div>
+
+@code{
+    private string getUrl(){
+
+        string currentPage = NavigationManager.ToBaseRelativePath(NavigationManager.Uri).ToLower();
+        if(currentPage.ToLower().StartsWith("session")){return "session";}
+        else{return "home";}
+    }
+
+}
+
+

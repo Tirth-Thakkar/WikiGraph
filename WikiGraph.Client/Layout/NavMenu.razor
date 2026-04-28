@@ -1,6 +1,52 @@
+
+@using System.Security
+@using System.Data.SqlTypes
+@using WikiGraph.Client.Pages
+@inject ApiClient ApiClient
+@inject NavigationManager NavigationManager
+
 <nav class="nav">
-    <a href="/" class="nav-item active">Overview</a>
-    <a href="#sessions" class="nav-item">Sessions</a>
-    <a href="#thread" class="nav-item">Chat</a>
-    <a href="#graphs" class="nav-item">Graphs</a>
+    @foreach(SessionSummary session in SessionSummaries){
+        <div class = nav-item>
+            <NavLink  class = "nav-pill" href="@($"/Sessions/{session.SessionId}")">@session.Title</NavLink>
+            <button class = "nav-delete" type="button" @onclick="() => DeleteSession(session.SessionId)">
+            X
+            </button>
+        </div>
+    
+        
+   
+    }   
 </nav>
+
+@code{
+
+    private bool delete = false;
+
+    public List<SessionSummary> SessionSummaries = [];
+    protected override async Task OnInitializedAsync(){
+
+        NavigationManager.LocationChanged += LocationChanged;
+        await LoadSessions();
+    } 
+    protected async Task LoadSessions(){
+        SessionSummaries.Clear();
+        IReadOnlyList<SessionSummary>? sessions = await ApiClient.GetSessionsAsync();
+        SessionSummaries.AddRange(sessions);
+    } 
+
+    async void LocationChanged(object? sender, LocationChangedEventArgs e){
+        await LoadSessions();
+        StateHasChanged();
+
+    }
+
+    private async void DeleteSession(string sessionId){
+        ApiClient.DeleteSessionAsync(sessionId);
+        StateHasChanged();
+        await LoadSessions();
+        StateHasChanged();
+        NavigationManager.NavigateTo("/");
+    }
+
+}

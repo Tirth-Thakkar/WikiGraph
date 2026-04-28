@@ -26,6 +26,103 @@
         <span class="dismiss">🗙</span>
     </div>
     <script src="_framework/blazor.webassembly.js"></script>
+    <script> 
+
+    
+    function drawNode(ctx, x, y, radius, text) {
+    // Draw circle
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, 2 * Math.PI);
+    ctx.fillStyle = "white";
+    ctx.fill();
+    ctx.strokeStyle = "black";
+    ctx.stroke();
+
+    // Draw text (centered)
+    ctx.fillStyle = "black";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y);
+}
+        window.graphCanvas = { 
+            renderGraph: function (arg,arg2) { 
+                //Graph Setup Begins here
+                var canvas = document.getElementById("myCanvas"); 
+                var context = canvas.getContext("2d"); 
+                const bounds = canvas.getBoundingClientRect();
+                canvas.width = bounds.width;
+                canvas.height = bounds.height;
+                
+                //Setup ends here
+                context.fillStyle = "White";
+                context.fillRect(0, 0, canvas.width, canvas.height);
+                context.fillStyle = "Black";
+                context.font = "10px monospace";
+                context.textAlign = "center"; 
+                context.textBaseline = "middle"; 
+                console.log(arg,arg2,arg2.nodes.length);
+
+
+                this.GraphLayout(arg2.nodes,canvas.width,canvas.height,context);
+                context.fillText(arg2.topic,canvas.width/2,canvas.height/2);
+                
+
+            },
+            GraphLayout: function(nodes, width, length,ctx){
+                const cX = width/2;
+                const cY = length/2;
+  
+                const radianSpacing = 2*Math.PI/nodes.length;
+                const r = 200;
+             
+
+                for(let i = 1; i < nodes.length; i++){
+                    
+                    let x = r*Math.cos(i*radianSpacing);
+                    let y = r*Math.sin(i*radianSpacing);
+
+    
+                    if(nodes[i].label.length < 30){
+                        ctx.strokeStyle = "#8aa7cf";
+                        ctx.fillStyle = "rgb(255,255,255)";
+                        ctx.beginPath();       // 1. Start path
+                        ctx.moveTo(cX, cY);      
+                        ctx.lineTo(cX+x, cY+y); 
+                        ctx.stroke();
+
+                        ctx.strokeStyle = "red";
+
+                        ctx.beginPath();
+                        ctx.arc(cX+x,cY+y,40,0,2*Math.PI);
+                        ctx.stroke();
+                        ctx.fill();
+                        
+
+                        ctx.beginPath();
+                        ctx.arc(cX,cY,45,0,2*Math.PI);
+                        ctx.stroke();
+                        ctx.fill();
+
+
+      
+                    ctx.fillStyle = "rgb("+nodes[i].weight*255/5+", 0, 0)"
+
+                    ctx.fillText(nodes[i].label,cX+x,cY+y);
+
+                    }
+
+
+
+                }
+            },
+
+            clearCanvas: function(canvas, context){
+                context.clearCanvas(0,0,canvas.width, canvas.height);
+
+            }
+        }; 
+    </script>
 </body>
 
 </html>

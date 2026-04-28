@@ -1,46 +1,120 @@
-@if (Graphs.Count == 0)
-{
-    <div class="empty-card">
-        <strong>No graph yet</strong>
-        <p class="muted">Topic graphs appear once the assistant extracts relationships from the session context.</p>
-    </div>
-}
-else
-{
-    @foreach (var graph in Graphs)
-    {
-        <div class="graph">
-            <div class="graph-header">
-                <div>
-                    <p class="eyebrow">Topic map</p>
-                    <h3>@graph.Topic</h3>
-                </div>
-                <span class="graph-count">@graph.Nodes.Count node@(graph.Nodes.Count == 1 ? string.Empty : "s")</span>
-            </div>
-            <div class="nodes">
-                @foreach (var node in graph.Nodes)
-                {
-                    <span class="node">@node.Label</span>
-                }
-            </div>
-            <div class="edges">
-                @foreach (var edge in graph.Edges)
-                {
-                    <div class="edge">
-                        <span class="edge-source">@ResolveLabel(graph, edge.Source)</span>
-                        <span class="edge-relation">@edge.Relation</span>
-                        <span class="edge-target">@ResolveLabel(graph, edge.Target)</span>
-                    </div>
-                }
-            </div>
+@inject IJSRuntime JSRuntime
+
+<div class="session-panel details-panel">
+    <div class="details-header">
+        <p>@(CurrentGraph?.Topic ?? "Session details")</p>
+
+        <div class="details-toggle">
+            <button type="button"
+                    class="toggle-button @(activeView == DetailView.Citations ? "active" : "")"
+                    @onclick="() => SetView(DetailView.Citations)">
+                Citations
+            </button>
+
+            <button type="button"
+                    class="toggle-button @(activeView == DetailView.Graph ? "active" : "")"
+                    @onclick="() => SetView(DetailView.Graph)">
+                Graph
+            </button>
         </div>
+    </div>
+
+    @if (activeView == DetailView.Citations)
+    {
+        <CitationList Citations="Citations" />
     }
-}
+    else
+    {
+        @if (CurrentGraph is null || Graphs.Count == 0)
+        {
+            <div class="empty-card">
+                <strong>No graph yet</strong>
+                <p class="muted">Ask about a topic to generate a related graph.</p>
+            </div>
+        }
+        else
+        {
+            <div class="graph-panel">
+                <div class="graph-toolbar">
+                    <label for="graphSelect"><strong>Choose a Graph:</strong></label>
+                    <select id="graphSelect" class="graph-select" @onchange="OnGraphSelected">
+                        @for (int i = 0; i < Graphs.Count; i++)
+                        {
+                            <option value="@i" selected="@(Graphs[i].Topic == CurrentGraph.Topic)">
+                                @Graphs[i].Topic
+                            </option>
+                        }
+                    </select>
+                </div>
+
+                <h3>@CurrentGraph.Topic</h3>
+                <canvas @ref="canvasReference" id="myCanvas" class="graph-canvas"></canvas>
+            </div>
+        }
+    }
+</div>
 
 @code {
     [Parameter]
+    public GraphDto? CurrentGraph { get; set; }
+
+    [Parameter]
+    public EventCallback<GraphDto?> CurrentGraphChanged { get; set; }
+
+    [Parameter]
     public IReadOnlyList<GraphDto> Graphs { get; set; } = [];
 
-    private static string ResolveLabel(GraphDto graph, string nodeId) =>
-        graph.Nodes.FirstOrDefault(node => node.Id == nodeId)?.Label ?? nodeId;
+    [Parameter]
+    public IReadOnlyList<CitationDto> Citations { get; set; } = [];
+
+    private ElementReference canvasReference;
+    private string? _lastTopic;
+    private DetailView activeView = DetailView.Citations;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (activeView != DetailView.Graph || CurrentGraph is null)
+            return;
+
+        if (CurrentGraph.Topic == _lastTopic)
+            return;
+
+        _lastTopic = CurrentGraph.Topic;
+
+        await JSRuntime.InvokeVoidAsync("graphCanvas.renderGraph", canvasReference, CurrentGraph);
+    }
+
+    private async Task SetView(DetailView view)
+    {
+        activeView = view;
+
+        if (view == DetailView.Graph)
+        {
+            _lastTopic = null;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnGraphSelected(ChangeEventArgs e)
+    {
+        if (e.Value is null)
+            return;
+
+        if (!int.TryParse(e.Value.ToString(), out var index))
+            return;
+
+        if (index < 0 || index >= Graphs.Count)
+            return;
+
+        _lastTopic = null;
+        await CurrentGraphChanged.InvokeAsync(Graphs[index]);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private enum DetailView
+    {
+        Citations,
+        Graph
+    }
 }

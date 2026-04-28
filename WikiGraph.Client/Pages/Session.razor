@@ -1,0 +1,186 @@
+@* 
+  To Do: Implement Message view from within Sessions
+
+*@
+
+@* Route Parameter That Controlls which session is called *@
+@page "/Sessions/{sessionId}"
+@using System.Runtime.ConstrainedExecution
+@using System.Runtime.CompilerServices
+
+<PageTitle>WikiGraph: @sessionTitle</PageTitle>
+<div class ="session-workspace">
+    <div class = "session-primary">
+        <div class = "session-messages">
+            @foreach(MessageDto message in sessionMessages){
+                string role = DetermineRole(message.Role);
+                string avatar = string.Empty;
+                @if(role.Equals("user")){avatar = "You";}
+                else{avatar = "AI"; }
+                <article class="message @role">
+                    <div class="message-avatar">
+                        @avatar
+                    </div>
+                    <div class="message-bubble">
+                        <div class = "message-meta">
+                            <span class="role">@role</span>
+                            <span class = "timestamp">@message.CreatedUtc.ToLocalTime().ToString()</span>
+                        </div>
+                        <p>@message.Content</p>
+                    </div>
+                </article>
+            }
+        </div>
+        <div class="prompt-dock">
+            <PromptBar
+            Prompt="@sessionPrompt"
+            PromptChanged="OnPromptChanged"
+            WikiUrl="@wikiUrl"
+            WikiUrlChanged="OnSourceUrlChanged"
+            Busy="@busy"
+            ErrorMsg="@errorMsg"
+            OnSubmit="SubmitPrompt">
+            </PromptBar>
+        </div>
+    </div>
+    <div class="session-secondary">
+        <GraphView CurrentGraph="currentGraph"
+           CurrentGraphChanged="OnCurrentGraphChanged"
+           Graphs="sessionGraphs"
+           Citations="sessionCitations" />
+    </div>
+</div>
+
+    
+        
+
+
+@inject ApiClient ApiClient
+
+@code{
+    
+    private Task OnCurrentGraphChanged(GraphDto? graph)
+    {
+        currentGraph = graph;
+        return Task.CompletedTask;
+    }
+
+    [Parameter]
+    public string? SessionId { get; set; }
+
+    @* SessionId Property, Used for attaining the proper session information from the DTO.
+       SessionId will be responsible for eveything used in rendering and logic *@
+
+    private SessionDetailDto? CurrentSession;
+
+    @* Per Page Copy of the Message Sessions and The Session Citations,
+       They Cannot Be nullable Objects as that will cause errors within the UI 
+       They are Cleared and Reset after every prompt submission in order to have the
+       most up to date messages within each session*@
+    private List<MessageDto> sessionMessages =[];
+    private List<CitationDto> sessionCitations = [];
+    private List<GraphDto> sessionGraphs =[];  
+    
+    private GraphDto? currentGraph;
+    private string sessionTitle = string.Empty;
+
+    @* Session Prompt Variables and Session *@
+    public string sessionPrompt = string.Empty;
+    public string wikiUrl = string.Empty; 
+    private bool busy; 
+    private string errorMsg = "Test"; 
+
+    
+
+    private static string DetermineRole(string role) =>
+        role.Trim().Equals("user", StringComparison.OrdinalIgnoreCase) ? "user" : "assistant";
+
+    @* When the Route Parameter is taken and the SessionId is set this will execute
+        This is the most important method within the page *@
+    protected override async Task OnParametersSetAsync()
+    {
+        @* Clear the current page copies of the Session and begin the process of getting new ones *@
+        await ResetSession();
+
+        @* If the Session Id is empty or null No session was able to be found *@
+        if(string.IsNullOrWhiteSpace(SessionId)){
+            errorMsg = "Session Id Unable to be Found";
+            return;
+        }
+        
+        @* Atempt to use the Api Client to pull the relevant session
+           Uses the Session Id passesed through the route Parameter to pull the correct session from the Api Client *@
+        await BusyState(async() =>
+        {
+            try{
+                CurrentSession = await ApiClient.GetSessionAsync(SessionId);
+                @* See if Session Exists at the given session id *@
+                if(CurrentSession is null){
+                    errorMsg = "No Session Exists at this Id";
+                }
+            }
+            finally{
+                sessionTitle = CurrentSession.Session.Title ?? string.Empty;
+                await BusyState(LoadSessions);
+            }
+        });
+    }
+    
+    @* Clear the per page copies of the session information *@
+    private async Task ResetSession(){
+        sessionMessages.Clear();
+        sessionCitations.Clear();
+        sessionGraphs.Clear();
+    }  
+
+    @* Get the Current Session Information and save them to the page copies *@
+    private async Task LoadSessions(){
+        sessionMessages.AddRange(CurrentSession.Messages);
+        sessionCitations.AddRange(CurrentSession.Citations);
+        sessionGraphs.AddRange(CurrentSession.Graphs);
+        currentGraph = sessionGraphs.LastOrDefault();
+    }
+
+    @* When the prompt is changed run these methods so the page copy of promt can be updated *@
+    private void OnPromptChanged(string value) => sessionPrompt = value;
+    private void OnSourceUrlChanged(string value) => wikiUrl = value;
+    
+    @* When a Prompt is Submitted Run this function
+       the InvokeAsync call in ChatThread triggers this function *@
+    private async Task SubmitPrompt(){
+        @* In cases where there is nothing to submit *@
+        if(string.IsNullOrWhiteSpace(sessionPrompt) && string.IsNullOrEmpty(wikiUrl)) {return;}
+
+        @* Clean the prompts of excessive whitespace and add a new article to the existing session
+           Different from the home page as that behavior creates a new session within the Api *@
+        await BusyState(async() =>
+        {
+            string cleanedPrompt = sessionPrompt.Trim();
+            string cleanedUrl = wikiUrl.Trim();
+
+            @* Where the Https request happens to add the article *@
+            CurrentSession = await ApiClient.AddArticleAsync
+            (SessionId, new AddWikiArticleRequest(cleanedPrompt,cleanedUrl)); 
+
+            @* Reset Prompt Paramters and load in new information *@
+            sessionPrompt = string.Empty;
+            wikiUrl = string.Empty;
+            await ResetSession();
+            await LoadSessions();
+        });
+    }
+    private async Task BusyState(Func<Task> process){
+        busy = true;
+        errorMsg = string.Empty;
+        try{
+            await process();
+        }
+        catch(Exception error){
+            errorMsg = "A Problem has Occured While handling your request";
+            Console.WriteLine(error);
+        }
+        finally{
+            busy = false;
+        }
+    }
+}

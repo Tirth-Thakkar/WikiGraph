@@ -1,149 +1,66 @@
 @page "/"
+
+@* Injecting Dependencies into the Frontend, Navigation Manager is responsible for having prompt sumbission redirect to session pages,
+   ApiClient is responsible for handling communication with the backend (https requests etc )*@
 @inject ApiClient ApiClient
+@inject NavigationManager PromptRedirect
 
 <PageTitle>WikiGraph</PageTitle>
 
-<section class="hero">
-    <div class="hero-copy">
-        <p class="eyebrow">Wikipedia research copilot</p>
-        <h1>Chat through a topic and keep every answer, source, and concept map in one workspace.</h1>
-        <p class="hero-text">Ask a question, paste a Wikipedia article, or use both to build a reusable study session with citations and graph context.</p>
-        <div class="hero-metrics">
-            <div class="metric">
-                <span>Sessions</span>
-                <strong>@sessions.Count</strong>
-            </div>
-            <div class="metric">
-                <span>Messages</span>
-                <strong>@messages.Count</strong>
-            </div>
-            <div class="metric">
-                <span>Citations</span>
-                <strong>@citations.Count</strong>
-            </div>
-            <div class="metric">
-                <span>Graphs</span>
-                <strong>@graphs.Count</strong>
-            </div>
+<section class="card">
+    <div class="hero-header">
+        <h1>Prompt to have a comprehensive summary of a topic</h1>
+        @* DemoPrompt *@
+        <div class="hero-actions">
+            <button class="send demo" @onclick="RunDemo" disabled="@isBusy">Try demo prompt</button>
+            <p class="hero-note">Client API target <code>http://localhost:5052</code></p>
         </div>
-    </div>
-    <div class="hero-actions">
-        <button class="send" @onclick="RunDemo" disabled="@isBusy">Try demo prompt</button>
-        <p class="hero-note">Client API target <code>http://localhost:5052</code></p>
-    </div>
+  </div>
 </section>
 
-<div class="workspace-grid">
-    <ChatSidebar Sessions="sessions" SelectedSessionId="@selectedSessionId" OnSelectSession="HandleSessionSelected" />
-
-    <ChatThread Messages="messages"
-                Prompt="@prompt"
-                PromptChanged="OnPromptChanged"
-                SourceUrl="@sourceUrl"
-                SourceUrlChanged="OnSourceUrlChanged"
-                IsBusy="isBusy"
-                ErrorMessage="@errorMessage"
-                OnSubmit="SubmitPrompt" />
-
-    <section class="detail-column">
-        <section class="card detail-card">
-            <div class="panel-header">
-                <div>
-                    <p class="eyebrow">Sources</p>
-                    <h2>Citations</h2>
-                </div>
-                <span class="count-pill">@citations.Count</span>
-            </div>
-            <CitationList Citations="citations" />
-        </section>
-
-        <section class="card detail-card" id="graphs">
-            <div class="panel-header">
-                <div>
-                    <p class="eyebrow">Knowledge view</p>
-                    <h2>Topic graphs</h2>
-                </div>
-                <span class="count-pill">@graphs.Count</span>
-            </div>
-            <GraphView Graphs="graphs" />
-        </section>
-    </section>
-</div>
+<PromptBar 
+    Prompt="@prompt"
+    PromptChanged="OnPromptChanged"
+    WikiUrl="@sourceUrl"
+    WikiUrlChanged="OnSourceUrlChanged"
+    Busy="isBusy"
+    ErrorMsg="@errorMessage"
+    OnSubmit="SubmitPrompt" />
 
 @code {
-    private readonly List<SessionSummary> sessions = [];
-    private readonly List<MessageDto> messages = [];
-    private readonly List<CitationDto> citations = [];
-    private readonly List<GraphDto> graphs = [];
     private string? selectedSessionId;
     private bool isBusy;
     private string? errorMessage;
     private string prompt = string.Empty;
     private string sourceUrl = string.Empty;
 
-    protected override Task OnInitializedAsync() => RunBusyStateAsync(LoadSessions);
-
-    private async Task LoadSessions()
-    {
-        var result = await ApiClient.GetSessionsAsync();
-        sessions.Clear();
-        sessions.AddRange(result);
-
-        if (sessions.Count == 0)
-        {
-            selectedSessionId = null;
-            ClearSessionArtifacts();
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(selectedSessionId) || sessions.All(session => session.SessionId != selectedSessionId))
-        {
-            await LoadSession(sessions[0].SessionId);
-        }
-    }
-
-    private Task HandleSessionSelected(string sessionId) => RunBusyStateAsync(() => LoadSession(sessionId));
-
-    private async Task LoadSession(string sessionId)
-    {
-        var session = await ApiClient.GetSessionAsync(sessionId);
-        if (session is null)
-        {
-            return;
-        }
-
-        selectedSessionId = sessionId;
-        ReplaceSessionArtifacts(session);
-    }
-
+    @* Use this Sumbit Prompt as a new Session Id  *@
     private async Task SubmitPrompt()
     {
+        @* Check to see if prompt exists If not do nothing*@
         if (string.IsNullOrWhiteSpace(prompt) && string.IsNullOrWhiteSpace(sourceUrl))
         {
             return;
         }
 
-        await RunBusyStateAsync(async () =>
+        await RunBusyStateAsync(async() =>
         {
+            @* Session Created Here *@
             var sessionId = await EnsureSelectedSessionAsync();
             var normalizedPrompt = prompt.Trim();
             var normalizedUrl = sourceUrl.Trim();
-            var payload = await ApiClient.AddArticleAsync(
-                sessionId,
-                new AddWikiArticleRequest(
-                    normalizedPrompt,
-                    string.IsNullOrWhiteSpace(normalizedUrl) ? null : normalizedUrl));
 
-            if (payload is null)
-            {
+            if(string.IsNullOrWhiteSpace(normalizedPrompt) && string.IsNullOrWhiteSpace(normalizedPrompt))
                 return;
-            }
+            
+            var newPrompt = await ApiClient.AddArticleAsync(sessionId, 
+            new AddWikiArticleRequest(normalizedPrompt, normalizedUrl));
 
             prompt = string.Empty;
             sourceUrl = string.Empty;
+            @* redirect to correct Session with *@
+            PromptRedirect.NavigateTo($"Sessions/"+sessionId);
 
-            ReplaceSessionArtifacts(payload);
-            await LoadSessions();
         });
     }
 
@@ -177,21 +94,6 @@
         var session = await ApiClient.CreateSessionAsync(new CreateSessionRequest(InferTitle(titleSeed)));
         selectedSessionId = session.SessionId;
         return session.SessionId;
-    }
-
-    private void ReplaceSessionArtifacts(SessionDetailDto session)
-    {
-        ClearSessionArtifacts();
-        messages.AddRange(session.Messages);
-        citations.AddRange(session.Citations);
-        graphs.AddRange(session.Graphs);
-    }
-
-    private void ClearSessionArtifacts()
-    {
-        messages.Clear();
-        citations.Clear();
-        graphs.Clear();
     }
 
     private async Task RunBusyStateAsync(Func<Task> action)
