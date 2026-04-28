@@ -28,7 +28,7 @@ public sealed class ApiClient
         var response = await _httpClient.DeleteAsync($"api/sessions/{sessionId}");
         response.EnsureSuccessStatusCode();
         
-        var content = await response.Content.ReadFromJsonAsync<string>(); 
+        string content = await response.Content.ReadFromJsonAsync<string>() ?? string.Empty; 
         
         return content; 
     }

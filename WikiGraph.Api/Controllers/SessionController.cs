@@ -56,7 +56,7 @@ public sealed class SessionController : ControllerBase
     }
 
     [HttpDelete("{sessionId}")]
-    public IActionResult Delete(string sessionId)
+    public IActionResult Delete(string sessionId, CancellationToken cancellationToken)
     {   
         _sessionRepository.DeleteSession(sessionId);
         return Ok(new {status= $"{sessionId} Deleted"});
