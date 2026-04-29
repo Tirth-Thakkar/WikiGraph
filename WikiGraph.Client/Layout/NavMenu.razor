@@ -9,9 +9,6 @@
     @foreach(SessionSummary session in SessionSummaries){
         <div class = nav-item>
             <NavLink  class = "nav-pill" href="@($"/Sessions/{session.SessionId}")">@session.Title</NavLink>
-            <button class = "nav-delete" type="button" @onclick="() => DeleteSession(session.SessionId)">
-            X
-            </button>
         </div>
     
         
@@ -42,11 +39,7 @@
     }
 
     private async void DeleteSession(string sessionId){
-        ApiClient.DeleteSessionAsync(sessionId);
-        StateHasChanged();
-        await LoadSessions();
-        StateHasChanged();
-        NavigationManager.NavigateTo("/");
+
     }
 
 }
