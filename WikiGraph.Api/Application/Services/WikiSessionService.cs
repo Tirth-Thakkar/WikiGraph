@@ -93,11 +93,18 @@ public sealed class WikiSessionService
     private static IReadOnlyList<CitationDto> BuildCitations(WikiArticle article, IReadOnlyList<WikiMatch> matches)
     {
         var citations = matches.Take(3)
-            .Select(match => new CitationDto(
-                match.Section.Equals("Overview", StringComparison.OrdinalIgnoreCase) ? article.Title : $"{article.Title} {match.Section}",
-                match.Section.Equals("Overview", StringComparison.OrdinalIgnoreCase) ? article.SourceUrl : $"{article.SourceUrl}#{TextTools.Slugify(match.Section)}",
-                match.Section,
-                match.ChunkId))
+            .Select(match =>
+            {
+                var isOverview = match.Section.Equals("Overview", StringComparison.OrdinalIgnoreCase);
+                var section = article.Sections.FirstOrDefault(section =>
+                    section.Heading.Equals(match.Section, StringComparison.OrdinalIgnoreCase));
+
+                return new CitationDto(
+                    isOverview ? article.Title : $"{article.Title} {match.Section}",
+                    isOverview ? article.SourceUrl : BuildSectionUrl(article.SourceUrl, match.Section, section?.Anchor),
+                    match.Section,
+                    match.ChunkId);
+            })
             .Distinct()
             .ToArray();
 
@@ -111,7 +118,21 @@ public sealed class WikiSessionService
             new CitationDto(article.Title, article.SourceUrl, "Overview", null),
             new CitationDto($"{article.Title} related topics", $"{article.SourceUrl}#related-topics", "Related topics", null),
             new CitationDto($"{article.Title} references", $"{article.SourceUrl}#references", "References", null)
-            ];
+        ];
+    }
+
+    // Builds a Wikipedia section link from the API-provided anchor when available.
+    private static string BuildSectionUrl(string sourceUrl, string sectionHeading, string? anchor)
+    {
+        var fragmentIndex = sourceUrl.IndexOf('#', StringComparison.Ordinal);
+        var baseUrl = fragmentIndex < 0 ? sourceUrl : sourceUrl[..fragmentIndex];
+        var fragment = TextTools.Clean(anchor);
+        if (string.IsNullOrWhiteSpace(fragment))
+        {
+            fragment = Uri.EscapeDataString(sectionHeading.Replace(' ', '_'));
+        }
+
+        return $"{baseUrl}#{fragment}";
     }
 
     // Builds a small topic graph around the article and related context.

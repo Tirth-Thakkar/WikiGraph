@@ -1,12 +1,28 @@
+using System.Net;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using WikiGraph.Api.Application.Models;
 
 namespace WikiGraph.Api.Infrastructure.Wikipedia;
 
 public sealed class WikipediaService
 {
+    private static readonly HashSet<string> NonContentSectionHeadings = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "References",
+        "Notes",
+        "Citations",
+        "Bibliography",
+        "Sources",
+        "Further reading",
+        "External links",
+        "See also"
+    };
+
     private readonly HttpClient _httpClient;
     private readonly ILogger<WikipediaService> _logger;
+
+    private sealed record WikiApiSection(string Heading, string Index, string? Anchor);
 
     // Creates the Wikipedia client wrapper used by the API.
     public WikipediaService(HttpClient httpClient, ILogger<WikipediaService> logger)
@@ -130,8 +146,8 @@ public sealed class WikipediaService
             RetrievedUtc = DateTime.UtcNow
         };
 
-        // Keep the article model small and UI-friendly: overview, a few details, then related-topic summaries.
-        AddSections(article, extract);
+        // Keep the article model small and UI-friendly: overview, a few real Wikipedia sections, then related-topic summaries.
+        await AddSectionsAsync(article, extract, title, cancellationToken);
 
         var linkedTitles = ReadLinkedTitles(page, title);
         var relatedTopics = await LoadRelatedTopicsAsync(linkedTitles, cancellationToken);
@@ -215,11 +231,110 @@ public sealed class WikipediaService
         return await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(cancellationToken), cancellationToken: cancellationToken);
     }
 
-    // Adds overview, detail, and key-point sections to the article model.
-    private static void AddSections(WikiArticle article, string extract)
+    // Adds overview and real Wikipedia article sections to the article model.
+    private async Task AddSectionsAsync(
+        WikiArticle article,
+        string extract,
+        string title,
+        CancellationToken cancellationToken)
     {
         article.Sections.Add(new WikiSection("Overview", article.Summary));
 
+        var addedWikipediaSections = false;
+        foreach (var section in (await LoadArticleSectionsAsync(title, cancellationToken)).Take(4))
+        {
+            var content = await LoadSectionTextAsync(title, section, cancellationToken);
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                continue;
+            }
+
+            article.Sections.Add(new WikiSection(section.Heading, content, section.Anchor));
+            addedWikipediaSections = true;
+        }
+
+        if (!addedWikipediaSections)
+        {
+            AddFallbackExtractSections(article, extract);
+        }
+    }
+
+    // Fetches the table of contents metadata so citations can use Wikipedia's actual section names and anchors.
+    private async Task<IReadOnlyList<WikiApiSection>> LoadArticleSectionsAsync(string title, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = await GetJsonDocumentAsync(
+                $"?action=parse&format=json&formatversion=2&page={Uri.EscapeDataString(title)}&prop=sections",
+                cancellationToken);
+
+            if (!document.RootElement.TryGetProperty("parse", out var parse) ||
+                !parse.TryGetProperty("sections", out var sections) ||
+                sections.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var articleSections = new List<WikiApiSection>();
+            foreach (var section in sections.EnumerateArray())
+            {
+                var heading = TextTools.Clean(WebUtility.HtmlDecode(StripHtml(ReadString(section, "line"))));
+                var index = TextTools.Clean(ReadString(section, "index"));
+                if (string.IsNullOrWhiteSpace(heading) ||
+                    string.IsNullOrWhiteSpace(index) ||
+                    NonContentSectionHeadings.Contains(heading) ||
+                    (ReadInt(section, "level") ?? int.MaxValue) > 2)
+                {
+                    continue;
+                }
+
+                articleSections.Add(new WikiApiSection(
+                    heading,
+                    index,
+                    TextTools.Clean(ReadString(section, "anchor") ?? ReadString(section, "linkAnchor"))));
+            }
+
+            return articleSections
+                .DistinctBy(section => section.Index, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Wikipedia section metadata lookup failed for {Title}.", title);
+            return [];
+        }
+    }
+
+    // Fetches and normalizes the body text for a single Wikipedia section.
+    private async Task<string> LoadSectionTextAsync(
+        string title,
+        WikiApiSection section,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = await GetJsonDocumentAsync(
+                $"?action=parse&format=json&formatversion=2&page={Uri.EscapeDataString(title)}&prop=text&section={Uri.EscapeDataString(section.Index)}&disableeditsection=1&disabletoc=1",
+                cancellationToken);
+
+            if (!document.RootElement.TryGetProperty("parse", out var parse) ||
+                !TryReadParseText(parse, out var html))
+            {
+                return string.Empty;
+            }
+
+            return ExtractSectionText(html, section.Heading);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Wikipedia section text lookup failed for {Title} section {Section}.", title, section.Heading);
+            return string.Empty;
+        }
+    }
+
+    // Adds derived extract chunks only when section-level Wikipedia content is unavailable.
+    private static void AddFallbackExtractSections(WikiArticle article, string extract)
+    {
         foreach (var paragraph in SplitParagraphs(extract).Take(2))
         {
             if (!string.Equals(paragraph, article.Summary, StringComparison.OrdinalIgnoreCase))
@@ -232,6 +347,76 @@ public sealed class WikipediaService
         {
             article.Sections.Add(new WikiSection("Key Point", sentence));
         }
+    }
+
+    // Converts the parsed Wikipedia HTML into compact section text for storage and retrieval.
+    private static string ExtractSectionText(string html, string heading)
+    {
+        var withoutComments = Regex.Replace(html, "<!--.*?-->", " ", RegexOptions.Singleline);
+        var withoutScripts = Regex.Replace(withoutComments, "<(script|style)[^>]*>.*?</\\1>", " ", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var withoutReferences = Regex.Replace(withoutScripts, "<sup[^>]*class=\"[^\"]*reference[^\"]*\"[^>]*>.*?</sup>", " ", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+        var withParagraphBreaks = Regex.Replace(withoutReferences, "</?(p|div|section|h[1-6]|ul|ol|li|table|tr|br)[^>]*>", "\n\n", RegexOptions.IgnoreCase);
+        var text = WebUtility.HtmlDecode(StripHtml(withParagraphBreaks));
+
+        var paragraphs = SplitParagraphs(text)
+            .Where(paragraph => !string.Equals(paragraph, heading, StringComparison.OrdinalIgnoreCase))
+            .Where(paragraph => paragraph.Length > 20)
+            .Take(2)
+            .ToArray();
+
+        return TextTools.TrimToLength(string.Join(" ", paragraphs), 1400);
+    }
+
+    // Removes simple HTML tags from small API fields and parsed text after block handling.
+    private static string StripHtml(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? string.Empty
+            : Regex.Replace(value, "<[^>]+>", " ");
+    }
+
+    // Reads action=parse text across MediaWiki response shapes.
+    private static bool TryReadParseText(JsonElement parse, out string html)
+    {
+        html = string.Empty;
+        if (!parse.TryGetProperty("text", out var text))
+        {
+            return false;
+        }
+
+        if (text.ValueKind == JsonValueKind.String)
+        {
+            html = text.GetString() ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(html);
+        }
+
+        if (text.ValueKind == JsonValueKind.Object &&
+            text.TryGetProperty("*", out var legacyText) &&
+            legacyText.ValueKind == JsonValueKind.String)
+        {
+            html = legacyText.GetString() ?? string.Empty;
+            return !string.IsNullOrWhiteSpace(html);
+        }
+
+        return false;
+    }
+
+    // Reads an integer property from a JSON element when MediaWiki returns numeric-looking strings.
+    private static int? ReadInt(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return null;
+        }
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var number))
+        {
+            return number;
+        }
+
+        return property.ValueKind == JsonValueKind.String && int.TryParse(property.GetString(), out number)
+            ? number
+            : null;
     }
 
     // Reads and filters linked article titles from the page payload.

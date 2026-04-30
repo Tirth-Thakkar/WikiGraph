@@ -3,7 +3,7 @@ using System.Text;
 
 namespace WikiGraph.Api.Application.Models;
 
-public sealed record WikiSection(string Heading, string Content);
+public sealed record WikiSection(string Heading, string Content, string? Anchor = null);
 
 public sealed record WikiMatch(string ChunkId, string Section, string Text, string SourceUrl, double Score);
 
