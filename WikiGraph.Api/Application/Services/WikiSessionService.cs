@@ -36,7 +36,8 @@ public sealed class WikiSessionService
         // Get the session's messages if the session exists; otherwise, use an empty collection.
         // Funky operators, huh, null conditional operator if not null -> messages + null coalesce operator (??) uses right value if null 
         var sessionHistory = _sessionRepository.GetSession(sessionId)?.Messages ?? [];
-        var article = await _wikipediaService.GetArticleAsync(topic, wikipediaUrl, cancellationToken);
+        var lookupPlan = await _geminiService.PlanWikipediaLookupAsync(topic, wikipediaUrl, sessionHistory, cancellationToken);
+        var article = await _wikipediaService.GetArticleAsync(topic, wikipediaUrl, lookupPlan, cancellationToken);
         var prompt = string.IsNullOrWhiteSpace(topic) ? article.Title : topic;
         var nowUtc = DateTime.UtcNow;
 
@@ -101,7 +102,7 @@ public sealed class WikiSessionService
 
                 return new CitationDto(
                     isOverview ? article.Title : $"{article.Title} {match.Section}",
-                    isOverview ? article.SourceUrl : BuildSectionUrl(article.SourceUrl, match.Section, section?.Anchor),
+                    isOverview ? article.SourceUrl : BuildCitationUrl(article.SourceUrl, section?.Anchor),
                     match.Section,
                     match.ChunkId);
             })
@@ -115,21 +116,19 @@ public sealed class WikiSessionService
 
         return
         [
-            new CitationDto(article.Title, article.SourceUrl, "Overview", null),
-            new CitationDto($"{article.Title} related topics", $"{article.SourceUrl}#related-topics", "Related topics", null),
-            new CitationDto($"{article.Title} references", $"{article.SourceUrl}#references", "References", null)
+            new CitationDto(article.Title, article.SourceUrl, "Overview", null)
         ];
     }
 
-    // Builds a Wikipedia section link from the API-provided anchor when available.
-    private static string BuildSectionUrl(string sourceUrl, string sectionHeading, string? anchor)
+    // Builds a Wikipedia section link only when the API supplied a real anchor for that section.
+    private static string BuildCitationUrl(string sourceUrl, string? anchor)
     {
         var fragmentIndex = sourceUrl.IndexOf('#', StringComparison.Ordinal);
         var baseUrl = fragmentIndex < 0 ? sourceUrl : sourceUrl[..fragmentIndex];
         var fragment = TextTools.Clean(anchor);
         if (string.IsNullOrWhiteSpace(fragment))
         {
-            fragment = Uri.EscapeDataString(sectionHeading.Replace(' ', '_'));
+            return baseUrl;
         }
 
         return $"{baseUrl}#{fragment}";

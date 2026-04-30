@@ -9,6 +9,8 @@ public sealed record WikiMatch(string ChunkId, string Section, string Text, stri
 
 public sealed record WikiTopicReference(string Title, string SourceUrl, string Summary);
 
+public sealed record WikiLookupPlan(string SearchQuery, IReadOnlyList<string> FocusPhrases);
+
 public sealed class WikiArticle
 {
     public WikiArticle(string title, string sourceUrl)
@@ -83,6 +85,11 @@ internal static class TextTools
 
         foreach (var character in text)
         {
+            if (character is '\'' or '’')
+            {
+                continue;
+            }
+
             if (char.IsLetterOrDigit(character))
             {
                 current.Append(char.ToLowerInvariant(character));
