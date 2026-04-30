@@ -151,12 +151,14 @@
         @* In cases where there is nothing to submit *@
         if(string.IsNullOrWhiteSpace(sessionPrompt) && string.IsNullOrEmpty(wikiUrl)) {return;}
 
+        
+
         @* Clean the prompts of excessive whitespace and add a new article to the existing session
            Different from the home page as that behavior creates a new session within the Api *@
         await BusyState(async() =>
-        {
-            string cleanedPrompt = sessionPrompt.Trim();
-            string cleanedUrl = wikiUrl.Trim();
+            {
+                string cleanedPrompt = sessionPrompt.Trim();
+                string cleanedUrl = wikiUrl.Trim();
 
             @* Where the Https request happens to add the article *@
             CurrentSession = await ApiClient.AddArticleAsync

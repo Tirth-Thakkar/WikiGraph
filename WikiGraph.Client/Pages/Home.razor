@@ -21,7 +21,7 @@
 <PromptBar 
     Prompt="@prompt"
     PromptChanged="OnPromptChanged"
-    WikiUrl="@sourceUrl"
+    WikiUrl="@wikiUrl"
     WikiUrlChanged="OnSourceUrlChanged"
     Busy="isBusy"
     ErrorMsg="@errorMessage"
@@ -32,13 +32,13 @@
     private bool isBusy;
     private string? errorMessage;
     private string prompt = string.Empty;
-    private string sourceUrl = string.Empty;
+    private string wikiUrl = string.Empty;
 
     @* Use this Sumbit Prompt as a new Session Id  *@
     private async Task SubmitPrompt()
     {
         @* Check to see if prompt exists If not do nothing*@
-        if (string.IsNullOrWhiteSpace(prompt) && string.IsNullOrWhiteSpace(sourceUrl))
+        if (string.IsNullOrWhiteSpace(prompt) && string.IsNullOrWhiteSpace(wikiUrl))
         {
             return;
         }
@@ -47,17 +47,16 @@
         {
             @* Session Created Here *@
             var sessionId = await EnsureSelectedSessionAsync();
-            var normalizedPrompt = prompt.Trim();
-            var normalizedUrl = sourceUrl.Trim();
+            var cleanPrompt = prompt.Trim();
+            var cleanUrl = wikiUrl.Trim();
 
-            if(string.IsNullOrWhiteSpace(normalizedPrompt) && string.IsNullOrWhiteSpace(normalizedPrompt))
-                return;
+            if(string.IsNullOrWhiteSpace(cleanUrl) && string.IsNullOrWhiteSpace(cleanPrompt)) {return;}
             
             var newPrompt = await ApiClient.AddArticleAsync(sessionId, 
-            new AddWikiArticleRequest(normalizedPrompt, normalizedUrl));
+            new AddWikiArticleRequest(cleanPrompt, cleanUrl));
 
             prompt = string.Empty;
-            sourceUrl = string.Empty;
+            wikiUrl = string.Empty;
             @* redirect to correct Session with *@
             PromptRedirect.NavigateTo($"Sessions/"+sessionId);
 
@@ -67,7 +66,7 @@
     private async Task RunDemo()
     {
         prompt = "Climate adaptation";
-        sourceUrl = string.Empty;
+        wikiUrl = string.Empty;
         await SubmitPrompt();
     }
 
@@ -79,7 +78,7 @@
 
     private Task OnSourceUrlChanged(string value)
     {
-        sourceUrl = value;
+        wikiUrl = value;
         return Task.CompletedTask;
     }
 
@@ -90,7 +89,7 @@
             return selectedSessionId;
         }
 
-        var titleSeed = string.IsNullOrWhiteSpace(prompt) ? sourceUrl : prompt;
+        var titleSeed = string.IsNullOrWhiteSpace(prompt) ? wikiUrl : prompt;
         var session = await ApiClient.CreateSessionAsync(new CreateSessionRequest(InferTitle(titleSeed)));
         selectedSessionId = session.SessionId;
         return session.SessionId;
