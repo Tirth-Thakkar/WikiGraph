@@ -30,6 +30,19 @@ Open `http://localhost:5024` for the WikiGraph client.
 - Build-time document: `dotnet build WikiGraph.Api/WikiGraph.Api.csproj`
 - Generated file output: `WikiGraph.Api/openapi/WikiGraph.Api.json`
 
+## Gemini
+
+The API uses Gemini for Wikipedia lookup planning, embeddings, and user-facing replies only when `GEMINI_API_KEY` is configured.
+
+```bash
+export GEMINI_API_KEY="your-api-key"
+dotnet run --project WikiGraph.Api/WikiGraph.Api.csproj
+```
+
+You can also put `GEMINI_API_KEY=your-api-key` in a local `.env` file at the repo root or API project path.
+
+If `GEMINI_API_KEY` is not set, the backend still runs with deterministic local fallback responses and keyword retrieval. The API logs will say when fallback behavior is being used.
+
 ## Notes
 
 - The backend stores data in SQLite.

@@ -7,6 +7,10 @@ namespace WikiGraph.Api.Infrastructure.Wikipedia;
 
 public sealed class WikipediaService
 {
+    private const int SearchResultLimit = 8;
+    private const int MaxArticleSectionsToFetch = 16;
+    private const int MaxSearchQueryLength = 280;
+
     private static readonly HashSet<string> NonContentSectionHeadings = new(StringComparer.OrdinalIgnoreCase)
     {
         "References",
@@ -23,6 +27,18 @@ public sealed class WikipediaService
     private readonly ILogger<WikipediaService> _logger;
 
     private sealed record WikiApiSection(string Heading, string Index, string? Anchor);
+    private sealed record WikiSearchCandidate(
+        string Title,
+        string Snippet,
+        string TitleSnippet,
+        string SectionTitle,
+        string SectionSnippet,
+        int Position);
+    private sealed record WikiSearchResults(IReadOnlyList<WikiSearchCandidate> Candidates, string? Suggestion);
+    private sealed record WikiSearchResolution(
+        string Title,
+        IReadOnlyList<string> SuggestedSections,
+        IReadOnlyList<string> FocusPhrases);
 
     // Creates the Wikipedia client wrapper used by the API.
     public WikipediaService(HttpClient httpClient, ILogger<WikipediaService> logger)
@@ -32,68 +48,265 @@ public sealed class WikipediaService
     }
 
     // Resolves a Wikipedia article, or a fallback article when the fetch fails.
-    public async Task<WikiArticle> GetArticleAsync(string topic, string? wikipediaUrl, CancellationToken cancellationToken = default)
+    public async Task<WikiArticle> GetArticleAsync(
+        string topic,
+        string? wikipediaUrl,
+        WikiLookupPlan? lookupPlan = null,
+        CancellationToken cancellationToken = default)
     {
         var cleanTopic = TextTools.Clean(topic);
         var cleanUrl = TextTools.Clean(wikipediaUrl);
-        var requestedTitle = ResolveRequestedTitle(cleanTopic, cleanUrl);
-        var resolvedTitle = await SearchBestTitleAsync(requestedTitle, cleanUrl, cancellationToken);
-        var sourceUrl = ResolveUrl(resolvedTitle, cleanUrl);
+        var cleanSearchQuery = TextTools.Clean(lookupPlan?.SearchQuery);
+        var lookupText = string.IsNullOrWhiteSpace(cleanUrl) && !string.IsNullOrWhiteSpace(cleanSearchQuery)
+            ? cleanSearchQuery
+            : cleanTopic;
+        var requestedTitle = ResolveRequestedTitle(lookupText, cleanUrl);
+        var focusPhrases = BuildFocusPhrases(cleanTopic, lookupPlan);
+        var resolution = await ResolveSearchAsync(requestedTitle, cleanUrl, cleanTopic, focusPhrases, cancellationToken);
+        var sourceUrl = ResolveUrl(resolution.Title, cleanUrl);
 
         try
         {
-            var page = await LoadPageAsync(resolvedTitle, includeLinks: true, cancellationToken);
+            var page = await LoadPageAsync(resolution.Title, includeLinks: true, cancellationToken);
             if (page is null)
             {
-                return BuildFallbackArticle(resolvedTitle, cleanTopic, sourceUrl);
+                return BuildFallbackArticle(resolution.Title, cleanTopic, sourceUrl);
             }
 
-            return await BuildArticleAsync(page.Value, cleanTopic, sourceUrl, cancellationToken);
+            return await BuildArticleAsync(page.Value, cleanTopic, sourceUrl, resolution, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogInformation(ex, "Wikipedia fetch failed for {Title}; using fallback content.", resolvedTitle);
-            return BuildFallbackArticle(resolvedTitle, cleanTopic, sourceUrl);
+            _logger.LogInformation(ex, "Wikipedia fetch failed for {Title}; using fallback content.", resolution.Title);
+            return BuildFallbackArticle(resolution.Title, cleanTopic, sourceUrl);
         }
     }
 
-    // Searches for the best canonical title when the user passed free-form text.
-    private async Task<string> SearchBestTitleAsync(string requestedTitle, string wikipediaUrl, CancellationToken cancellationToken)
+    // Searches for the best canonical title and any matching section hints when the user passed free-form text.
+    private async Task<WikiSearchResolution> ResolveSearchAsync(
+        string requestedTitle,
+        string wikipediaUrl,
+        string originalPrompt,
+        IReadOnlyList<string> focusPhrases,
+        CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(wikipediaUrl) || string.IsNullOrWhiteSpace(requestedTitle))
+        if (string.IsNullOrWhiteSpace(requestedTitle))
         {
-            return requestedTitle;
+            return new WikiSearchResolution(requestedTitle, [], focusPhrases);
+        }
+
+        if (!string.IsNullOrWhiteSpace(wikipediaUrl))
+        {
+            var linkedSectionHints = await SearchLinkedArticleSectionHintsAsync(requestedTitle, focusPhrases, cancellationToken);
+            return new WikiSearchResolution(requestedTitle, linkedSectionHints, focusPhrases);
         }
 
         try
         {
-            // MediaWiki `action=query&list=search` turns free-form text like "grass types" into a canonical title.
-            using var document = await GetJsonDocumentAsync(
-                $"?action=query&format=json&formatversion=2&list=search&srnamespace=0&srlimit=1&srsearch={Uri.EscapeDataString(requestedTitle)}",
-                cancellationToken);
+            var candidates = (await SearchAllCandidateQueriesAsync(
+                    new[] { requestedTitle, originalPrompt }.Concat(focusPhrases),
+                    cancellationToken))
+                .DistinctBy(candidate => $"{candidate.Title}\u001f{candidate.SectionTitle}", StringComparer.OrdinalIgnoreCase)
+                .ToList();
 
-            if (!document.RootElement.TryGetProperty("query", out var query) ||
-                !query.TryGetProperty("search", out var results) ||
-                results.ValueKind != JsonValueKind.Array)
-            {
-                return requestedTitle;
-            }
-
-            foreach (var result in results.EnumerateArray())
-            {
-                var title = TextTools.Clean(ReadString(result, "title"));
-                if (!string.IsNullOrWhiteSpace(title))
-                {
-                    return title;
-                }
-            }
+            var scoringText = BuildScoringText(originalPrompt, focusPhrases);
+            var best = SelectBestSearchCandidate(scoringText, candidates);
+            return best is null
+                ? new WikiSearchResolution(requestedTitle, [], focusPhrases)
+                : new WikiSearchResolution(best.Title, ReadSuggestedSections(best), focusPhrases);
         }
         catch (Exception ex)
         {
             _logger.LogInformation(ex, "Wikipedia title search failed for {Title}; keeping requested title.", requestedTitle);
         }
 
-        return requestedTitle;
+        return new WikiSearchResolution(requestedTitle, [], focusPhrases);
+    }
+
+    // Searches the AI-planned query, original prompt, focus phrases, and MediaWiki suggestions.
+    private async Task<IReadOnlyList<WikiSearchCandidate>> SearchAllCandidateQueriesAsync(
+        IEnumerable<string> rawSearchTexts,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new List<WikiSearchCandidate>();
+        var searched = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var pendingSearches = new Queue<string>(rawSearchTexts
+            .Select(BuildSearchQuery)
+            .Where(query => !string.IsNullOrWhiteSpace(query))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(4));
+
+        while (pendingSearches.TryDequeue(out var searchText))
+        {
+            if (!searched.Add(searchText))
+            {
+                continue;
+            }
+
+            var searchResults = await SearchCandidatesAsync(searchText, cancellationToken);
+            candidates.AddRange(searchResults.Candidates);
+
+            if (!string.IsNullOrWhiteSpace(searchResults.Suggestion) &&
+                !searched.Contains(searchResults.Suggestion))
+            {
+                pendingSearches.Enqueue(searchResults.Suggestion);
+            }
+        }
+
+        return candidates;
+    }
+
+    // Loads MediaWiki search candidates and the search engine's own spelling suggestion, when available.
+    private async Task<WikiSearchResults> SearchCandidatesAsync(string searchText, CancellationToken cancellationToken)
+    {
+        using var document = await GetJsonDocumentAsync(
+            $"?action=query&format=json&formatversion=2&list=search&srnamespace=0&srlimit={SearchResultLimit}&srinfo=suggestion&srprop=snippet|titlesnippet|sectiontitle|sectionsnippet&srsearch={Uri.EscapeDataString(searchText)}",
+            cancellationToken);
+
+        if (!document.RootElement.TryGetProperty("query", out var query))
+        {
+            return new WikiSearchResults([], null);
+        }
+
+        var suggestion = query.TryGetProperty("searchinfo", out var searchInfo)
+            ? ReadSearchText(searchInfo, "suggestion")
+            : null;
+
+        if (!query.TryGetProperty("search", out var results) ||
+            results.ValueKind != JsonValueKind.Array)
+        {
+            return new WikiSearchResults([], suggestion);
+        }
+
+        var candidates = new List<WikiSearchCandidate>();
+        var position = 0;
+        foreach (var result in results.EnumerateArray())
+        {
+            var title = TextTools.Clean(ReadString(result, "title"));
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                candidates.Add(new WikiSearchCandidate(
+                    title,
+                    ReadSearchText(result, "snippet"),
+                    ReadSearchText(result, "titlesnippet"),
+                    ReadSearchText(result, "sectiontitle"),
+                    ReadSearchText(result, "sectionsnippet"),
+                    position));
+            }
+
+            position++;
+        }
+
+        return new WikiSearchResults(candidates, suggestion);
+    }
+
+    // Uses search only to find likely sections inside a URL-provided article; the linked title remains authoritative.
+    private async Task<IReadOnlyList<string>> SearchLinkedArticleSectionHintsAsync(
+        string linkedTitle,
+        IReadOnlyList<string> focusPhrases,
+        CancellationToken cancellationToken)
+    {
+        var focusText = BuildScoringText(string.Empty, focusPhrases);
+        if (string.IsNullOrWhiteSpace(focusText))
+        {
+            return [];
+        }
+
+        try
+        {
+            var searchResults = await SearchCandidatesAsync(BuildSearchQuery($"{linkedTitle} {focusText}"), cancellationToken);
+            return searchResults.Candidates
+                .Where(candidate => TextTools.Slugify(candidate.Title).Equals(TextTools.Slugify(linkedTitle), StringComparison.Ordinal))
+                .SelectMany(ReadSuggestedSections)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogInformation(ex, "Wikipedia linked article section hint lookup failed for {Title}.", linkedTitle);
+            return [];
+        }
+    }
+
+    // Builds a compact MediaWiki search query from AI-planned or fallback prompt text.
+    private static string BuildSearchQuery(string prompt)
+    {
+        return TextTools.TrimToLength(TextTools.Clean(prompt), MaxSearchQueryLength);
+    }
+
+    // Picks the search result that best matches the whole prompt instead of blindly using the first hit.
+    private static WikiSearchCandidate? SelectBestSearchCandidate(string prompt, IReadOnlyList<WikiSearchCandidate> candidates)
+    {
+        if (candidates.Count == 0)
+        {
+            return null;
+        }
+
+        var queryTerms = TextTools.ExtractTerms(prompt).ToHashSet(StringComparer.Ordinal);
+        if (queryTerms.Count == 0)
+        {
+            return candidates.OrderBy(candidate => candidate.Position).First();
+        }
+
+        var termWeights = BuildQueryTermWeights(queryTerms, candidates.Select(SearchCandidateText));
+        var best = candidates
+            .Select(candidate => new
+            {
+                Candidate = candidate,
+                Score = ScoreSearchCandidate(candidate, prompt, termWeights)
+            })
+            .OrderByDescending(item => item.Score)
+            .ThenBy(item => item.Candidate.Position)
+            .First();
+
+        return best.Score > 0.5d ? best.Candidate : null;
+    }
+
+    // Scores title, page snippets, and section snippets against the user's prompt terms.
+    private static double ScoreSearchCandidate(
+        WikiSearchCandidate candidate,
+        string prompt,
+        IReadOnlyDictionary<string, double> termWeights)
+    {
+        var normalizedPrompt = TextTools.Slugify(prompt);
+        var normalizedTitle = TextTools.Slugify(candidate.Title);
+
+        var score = WeightedTermOverlap(SearchCandidateText(candidate), termWeights);
+        score += WeightedTermOverlap(candidate.Title, termWeights) * 2d;
+        score += WeightedTermOverlap(candidate.SectionTitle, termWeights) * 3d;
+
+        if (normalizedTitle.Equals(normalizedPrompt, StringComparison.Ordinal))
+        {
+            score += 12d;
+        }
+        else if (normalizedPrompt.Contains(normalizedTitle, StringComparison.Ordinal))
+        {
+            score += 1.5d;
+        }
+
+        return score + Math.Max(0d, 0.5d - (candidate.Position * 0.05d));
+    }
+
+    // Combines all candidate text used by search ranking.
+    private static string SearchCandidateText(WikiSearchCandidate candidate)
+    {
+        return $"{candidate.Title} {candidate.TitleSnippet} {candidate.Snippet} {candidate.SectionTitle} {candidate.SectionSnippet}";
+    }
+
+    // Pulls optional section hints out of the selected search result.
+    private static IReadOnlyList<string> ReadSuggestedSections(WikiSearchCandidate candidate)
+    {
+        return new[] { candidate.SectionTitle }
+            .Select(TextTools.Clean)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    // Reads MediaWiki search fields, which often contain highlighted HTML snippets.
+    private static string ReadSearchText(JsonElement element, string propertyName)
+    {
+        return TextTools.Clean(WebUtility.HtmlDecode(StripHtml(ReadString(element, propertyName))));
     }
 
     // Loads a single Wikipedia page payload with extracts and optional links.
@@ -131,6 +344,7 @@ public sealed class WikipediaService
         JsonElement page,
         string originalTopic,
         string fallbackUrl,
+        WikiSearchResolution resolution,
         CancellationToken cancellationToken)
     {
         var title = ReadString(page, "title") ?? "Wikipedia topic";
@@ -147,7 +361,7 @@ public sealed class WikipediaService
         };
 
         // Keep the article model small and UI-friendly: overview, a few real Wikipedia sections, then related-topic summaries.
-        await AddSectionsAsync(article, extract, title, cancellationToken);
+        await AddSectionsAsync(article, extract, title, originalTopic, resolution.SuggestedSections, resolution.FocusPhrases, cancellationToken);
 
         var linkedTitles = ReadLinkedTitles(page, title);
         var relatedTopics = await LoadRelatedTopicsAsync(linkedTitles, cancellationToken);
@@ -236,12 +450,16 @@ public sealed class WikipediaService
         WikiArticle article,
         string extract,
         string title,
+        string prompt,
+        IReadOnlyList<string> suggestedSections,
+        IReadOnlyList<string> focusPhrases,
         CancellationToken cancellationToken)
     {
         article.Sections.Add(new WikiSection("Overview", article.Summary));
 
         var addedWikipediaSections = false;
-        foreach (var section in (await LoadArticleSectionsAsync(title, cancellationToken)).Take(4))
+        var sections = await LoadArticleSectionsAsync(title, cancellationToken);
+        foreach (var section in SelectSectionsForPrompt(sections, prompt, suggestedSections, focusPhrases, MaxArticleSectionsToFetch))
         {
             var content = await LoadSectionTextAsync(title, section, cancellationToken);
             if (string.IsNullOrWhiteSpace(content))
@@ -257,6 +475,160 @@ public sealed class WikipediaService
         {
             AddFallbackExtractSections(article, extract);
         }
+    }
+
+    // Chooses sections that best match the user's prompt, with early article sections as fallback context.
+    private static IReadOnlyList<WikiApiSection> SelectSectionsForPrompt(
+        IReadOnlyList<WikiApiSection> sections,
+        string prompt,
+        IReadOnlyList<string> suggestedSections,
+        IReadOnlyList<string> focusPhrases,
+        int maxSections)
+    {
+        if (sections.Count <= maxSections)
+        {
+            return sections;
+        }
+
+        var scoringText = BuildScoringText(prompt, focusPhrases);
+        var queryTerms = TextTools.ExtractTerms(scoringText).ToHashSet(StringComparer.Ordinal);
+        var termWeights = BuildQueryTermWeights(
+            queryTerms,
+            sections.Select(section => $"{section.Heading} {section.Anchor}"));
+        var suggestedHeadings = suggestedSections
+            .Select(TextTools.Clean)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var scoredSections = sections
+            .Select((section, index) => new
+            {
+                Section = section,
+                Index = index,
+                Score = ScoreSection(section, termWeights, suggestedHeadings)
+            })
+            .ToArray();
+        var selected = scoredSections
+            .Where(item => item.Score > 0d)
+            .OrderByDescending(item => item.Score)
+            .ThenBy(item => item.Index)
+            .Take(maxSections)
+            .ToList();
+
+        foreach (var section in scoredSections.Take(3))
+        {
+            if (selected.Count >= maxSections)
+            {
+                break;
+            }
+
+            if (selected.Any(item => item.Section.Index.Equals(section.Section.Index, StringComparison.OrdinalIgnoreCase)))
+            {
+                continue;
+            }
+
+            selected.Add(section);
+        }
+
+        foreach (var section in scoredSections)
+        {
+            if (selected.Count >= maxSections)
+            {
+                break;
+            }
+
+            if (!selected.Any(item => item.Section.Index.Equals(section.Section.Index, StringComparison.OrdinalIgnoreCase)))
+            {
+                selected.Add(section);
+            }
+        }
+
+        return selected
+            .OrderBy(item => item.Index)
+            .Select(item => item.Section)
+            .ToArray();
+    }
+
+    // Scores an article section heading against prompt terms and search-provided section hints.
+    private static double ScoreSection(
+        WikiApiSection section,
+        IReadOnlyDictionary<string, double> termWeights,
+        IReadOnlySet<string> suggestedHeadings)
+    {
+        var score = 0d;
+        if (suggestedHeadings.Contains(section.Heading))
+        {
+            score += 20d;
+        }
+
+        score += WeightedTermOverlap($"{section.Heading} {section.Anchor}", termWeights) * 3d;
+
+        return score;
+    }
+
+    // Combines the original prompt with the AI-planned focus phrases for local scoring only.
+    private static string BuildScoringText(string prompt, IReadOnlyList<string> focusPhrases)
+    {
+        return TextTools.Clean(string.Join(' ', new[] { prompt }.Concat(focusPhrases)));
+    }
+
+    // Preserves the user's original prompt while adding AI-provided focus phrases when they exist.
+    private static IReadOnlyList<string> BuildFocusPhrases(string prompt, WikiLookupPlan? lookupPlan)
+    {
+        var focusPhrases = new[] { prompt }
+            .Concat(lookupPlan?.FocusPhrases ?? [])
+            .Select(TextTools.Clean)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        return focusPhrases;
+    }
+
+    // Learns which prompt terms matter from the returned Wikipedia candidate/section corpus.
+    private static IReadOnlyDictionary<string, double> BuildQueryTermWeights(
+        IReadOnlySet<string> queryTerms,
+        IEnumerable<string> documents)
+    {
+        if (queryTerms.Count == 0)
+        {
+            return new Dictionary<string, double>(StringComparer.Ordinal);
+        }
+
+        var documentTermSets = documents
+            .Select(document => TextTools.ExtractTerms(document).ToHashSet(StringComparer.Ordinal))
+            .ToArray();
+        if (documentTermSets.Length == 0)
+        {
+            return queryTerms.ToDictionary(term => term, _ => 1d, StringComparer.Ordinal);
+        }
+
+        var weights = new Dictionary<string, double>(StringComparer.Ordinal);
+        foreach (var term in queryTerms)
+        {
+            var documentFrequency = documentTermSets.Count(document => document.Contains(term));
+            if (documentFrequency == 0)
+            {
+                continue;
+            }
+
+            weights[term] = Math.Log((documentTermSets.Length + 1d) / (documentFrequency + 1d)) + 1d;
+        }
+
+        return weights;
+    }
+
+    // Scores exact term overlap with corpus-derived weights instead of curated stop words or synonym lists.
+    private static double WeightedTermOverlap(string text, IReadOnlyDictionary<string, double> termWeights)
+    {
+        if (termWeights.Count == 0 || string.IsNullOrWhiteSpace(text))
+        {
+            return 0d;
+        }
+
+        return TextTools.ExtractTerms(text)
+            .Distinct(StringComparer.Ordinal)
+            .Where(termWeights.ContainsKey)
+            .Sum(term => termWeights[term]);
     }
 
     // Fetches the table of contents metadata so citations can use Wikipedia's actual section names and anchors.
