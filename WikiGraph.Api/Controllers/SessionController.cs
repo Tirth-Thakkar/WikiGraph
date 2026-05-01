@@ -62,6 +62,14 @@ public sealed class SessionController : ControllerBase
         return Ok(new {status= $"{sessionId} Deleted"});
     }
 
+    [HttpPost("deleteSession")]
+    public IActionResult Delete2([FromBody] string request, CancellationToken cancellationToken)
+    {   
+        string sessionId= request;
+        _sessionRepository.DeleteSession(sessionId);
+        return Ok(new {status= $"{sessionId} Deleted"});
+    }
+
     // Returns one session with its messages, citations, and graphs.
     [HttpGet("{sessionId}")]
     public ActionResult<SessionDetailDto> GetSession(string sessionId)

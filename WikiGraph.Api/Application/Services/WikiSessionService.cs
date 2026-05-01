@@ -36,7 +36,8 @@ public sealed class WikiSessionService
         // Get the session's messages if the session exists; otherwise, use an empty collection.
         // Funky operators, huh, null conditional operator if not null -> messages + null coalesce operator (??) uses right value if null 
         var sessionHistory = _sessionRepository.GetSession(sessionId)?.Messages ?? [];
-        var article = await _wikipediaService.GetArticleAsync(topic, wikipediaUrl, cancellationToken);
+        var lookupPlan = await _geminiService.PlanWikipediaLookupAsync(topic, wikipediaUrl, sessionHistory, cancellationToken);
+        var article = await _wikipediaService.GetArticleAsync(topic, wikipediaUrl, lookupPlan, cancellationToken);
         var prompt = string.IsNullOrWhiteSpace(topic) ? article.Title : topic;
         var nowUtc = DateTime.UtcNow;
 
@@ -93,11 +94,18 @@ public sealed class WikiSessionService
     private static IReadOnlyList<CitationDto> BuildCitations(WikiArticle article, IReadOnlyList<WikiMatch> matches)
     {
         var citations = matches.Take(3)
-            .Select(match => new CitationDto(
-                match.Section.Equals("Overview", StringComparison.OrdinalIgnoreCase) ? article.Title : $"{article.Title} {match.Section}",
-                match.Section.Equals("Overview", StringComparison.OrdinalIgnoreCase) ? article.SourceUrl : $"{article.SourceUrl}#{TextTools.Slugify(match.Section)}",
-                match.Section,
-                match.ChunkId))
+            .Select(match =>
+            {
+                var isOverview = match.Section.Equals("Overview", StringComparison.OrdinalIgnoreCase);
+                var section = article.Sections.FirstOrDefault(section =>
+                    section.Heading.Equals(match.Section, StringComparison.OrdinalIgnoreCase));
+
+                return new CitationDto(
+                    isOverview ? article.Title : $"{article.Title} {match.Section}",
+                    isOverview ? article.SourceUrl : BuildCitationUrl(article.SourceUrl, section?.Anchor),
+                    match.Section,
+                    match.ChunkId);
+            })
             .Distinct()
             .ToArray();
 
@@ -108,10 +116,22 @@ public sealed class WikiSessionService
 
         return
         [
-            new CitationDto(article.Title, article.SourceUrl, "Overview", null),
-            new CitationDto($"{article.Title} related topics", $"{article.SourceUrl}#related-topics", "Related topics", null),
-            new CitationDto($"{article.Title} references", $"{article.SourceUrl}#references", "References", null)
-            ];
+            new CitationDto(article.Title, article.SourceUrl, "Overview", null)
+        ];
+    }
+
+    // Builds a Wikipedia section link only when the API supplied a real anchor for that section.
+    private static string BuildCitationUrl(string sourceUrl, string? anchor)
+    {
+        var fragmentIndex = sourceUrl.IndexOf('#', StringComparison.Ordinal);
+        var baseUrl = fragmentIndex < 0 ? sourceUrl : sourceUrl[..fragmentIndex];
+        var fragment = TextTools.Clean(anchor);
+        if (string.IsNullOrWhiteSpace(fragment))
+        {
+            return baseUrl;
+        }
+
+        return $"{baseUrl}#{fragment}";
     }
 
     // Builds a small topic graph around the article and related context.
