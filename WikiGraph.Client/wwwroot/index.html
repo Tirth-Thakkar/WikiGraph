@@ -32,11 +32,12 @@
         function drawNewLabel(context, data, settings) {
             if (!data.label) return;
 
+
             const lines = String(data.label).split("\n");
             const fontSize = settings.labelSize;
-            const fontFamily = settings.labelFont || "Arial";
-            const fontWeight = settings.labelWeight || "normal";
-            const lineHeight = fontSize * 1.2;
+            const fontFamily = settings.labelFont;
+            const fontWeight = settings.labelWeight;
+            const lineHeight = fontSize * 1.5;
 
             context.save();
 
@@ -60,9 +61,9 @@
 
             const lines = String(data.label).split("\n");
             const fontSize = settings.labelSize;
-            const fontFamily = settings.labelFont || "Arial";
-            const fontWeight = settings.labelWeight || "normal";
-            const lineHeight = fontSize * 1.2;
+            const fontFamily = settings.labelFont;
+            const fontWeight = settings.labelWeight;
+            const lineHeight = fontSize * 1.5;
             const paddingX = 8;
             const paddingY = 6;
             const labelGap = 6;
@@ -70,6 +71,8 @@
             context.save();
 
             context.font = `${fontWeight} ${fontSize}px "${fontFamily}"`;
+
+            //measureText to all elements in the Lines Arrary and get the max from there
             const labelWidth = Math.max(...lines.map(line => context.measureText(line).width));
             const labelX = data.x + data.size + labelGap;
             const boxX = data.x - data.size - paddingX;
@@ -103,8 +106,8 @@
         function splitWord(label){
             const wordArray = String(label).trim().split(" ");
             const newLabel = [];
-            for(let i = 0; i < wordArray.length; i+= 3){
-                newLabel.push(wordArray.slice(i,i+3).join(" "))
+            for(let i = 0; i < wordArray.length; i+= 5){
+                newLabel.push(wordArray.slice(i,i+5).join(" "))
             }
             return newLabel.join("\n");
         }
@@ -139,45 +142,51 @@
                 nodes.forEach((node, index) => {
                     const id = String(node.id);
                     const angle = (2 * Math.PI * index) / Math.max(1, nodes.length);
-                    //If the node is the main topic set the index
+                    //If the Index is Zero this is the Main Node
                     const isMainTopic = index === 0;
                     //see if node is a related topic or supporting detail
                     const isRelatedTopic = id.includes("detail");
                     graph.addNode(id, {
+                        //split the current label with line breaks
                         label: splitWord(node.label),
+                        //Set the Postion of the Root node
                         x: isMainTopic ? 0 : radius * Math.cos(angle),
                         y: isMainTopic ? 0 : radius * Math.sin(angle),
-                        size: 2 + 6 * (node.weight ?? 1),
-                        color: isMainTopic ? "#f6f1e3": isRelatedTopic? "#557fc0" : "#b65a5a"
+                        //Set the node side based of the node weight
+                        size: 2 + 3 * (node.weight),
+                        //Sets Colors with the Turnary statement based on thee types of node
+                        color: isMainTopic ? "#f6f1e3": isRelatedTopic? "#2e5793" : "#557fc0"
                     });
                 });
 
                 edges.forEach((edge, index) => {
+                    //For Each Edge Get the relevant information
                     const source = String(edge.source);
                     const target = String(edge.target);
                     const relation = String(edge.relation);
 
+
+                    
                     if (!graph.hasNode(source) || !graph.hasNode(target)) {
                         return;
                     }
 
                     graph.addEdgeWithKey(`${source}-${target}-${index}`, source, target, {
-                        label: edge.relation ?? "",
-                        size: 2,
-                        color: "#64748b"
+                        size: (relation.includes("supports"))? 2: 4,
+                        color: (relation.includes("supports"))? "#557fc0": "#b3a68a"
                     });
                 });
 
                 window.graphCanvas.renderer = new Sigma(graph, container, {
                     cameraPanBoundaries:{
                        boundaries:{
-                        x: [-9,9],
+                        x: [-7,7],
                         y: [-4,4]
                        },
-                       tolerance: 25
+                       tolerance: 50
                     },
-                    minCameraRatio: 0.4,
-                    maxCameraRatio: 2,
+                    minCameraRatio: 0.3,
+                    maxCameraRatio: 0.7,
 
                     labelSize: 12,
                     labelFont: "Times New Roman",
