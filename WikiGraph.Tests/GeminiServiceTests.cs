@@ -20,7 +20,8 @@ public sealed class GeminiServiceTests
         using var provider = BuildProvider(new FakeChatCompletionService("""
             {
               "answer": "AI generated answer about the cup controversy.",
-              "relatedTopics": ["Cup controversy", "Public response"]
+              "relatedTopics": ["Cup controversy", "Public response"],
+              "supportingTopics": ["Customer complaints", "Media coverage"]
             }
             """));
         var geminiService = BuildGeminiService(provider);
@@ -37,6 +38,7 @@ public sealed class GeminiServiceTests
 
         Assert.Equal("AI generated answer about the cup controversy.", reply.Answer);
         Assert.Contains("Cup controversy", reply.RelatedTopics);
+        Assert.Contains("Customer complaints", reply.SupportingTopics);
     }
 
     [Fact]
