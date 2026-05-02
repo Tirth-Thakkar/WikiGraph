@@ -39,7 +39,8 @@
     }
 
     private async void DeleteSession(string sessionId){
-
+        await ApiClient.DeleteSessionAsync(sessionId);
+        
     }
 
 }
