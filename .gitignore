@@ -46,6 +46,7 @@ coverage/
 # ASP.NET Core secrets and local config
 secrets.json
 appsettings.Local.json
+/WikiGraph.Api/wikigraph.db
 /WikiGraph.Api/openapi/
 
 # Exclude IDE-specific folders

@@ -10,9 +10,6 @@
     --muted: #4f5b67;
     --faint: #74808c;
 
-    --ruleline-blue: rgba( 86, 130, 196, 0.3);
-    --ruleline-red: rgba( 190, 86, 86, 0.3);
-
     --navtab: #efe7d4;
     --navtab-active: #fff7d6;
     --navtab-border: #cfc4ab;
@@ -34,18 +31,6 @@ body {
     min-height: 100%;
     color: var(--text);
     font-family: "Georgia", "Times New Roman", serif;
-    background: 
-    linear-gradient(to right, transparent 72px, var(--ruleline-red) 72px, var(--ruleline-red) 74px, transparent 74px),
-        repeating-linear-gradient(
-            to bottom,
-            var(--paper) 0,
-            var(--paper) 30px,
-            var(--ruleline-blue) 30px,
-            var(--ruleline-blue) 31px
-        );
-
-   
-
 }
 
 a {
@@ -602,7 +587,7 @@ h3 {
 .citations-container{
     flex:1;
     min-height: 0;
-    max-height: 36rem;
+    max-height: 32rem;
     overflow-y: auto;
 }
 
@@ -857,12 +842,14 @@ h3 {
 }
 
 .graph-canvas {
+    position: relative;
     width: 100%;
     overflow: hidden;
-    height: 400px;
+    height: 450px;
     border: 1px solid var(--panel-border);
     border-radius: 0.5rem;
     background: white;
+    box-sizing: border-box;
 }
 
 .citations {
