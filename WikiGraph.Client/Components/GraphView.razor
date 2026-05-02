@@ -21,7 +21,9 @@
 
     @if (activeView == DetailView.Citations)
     {
-        <CitationList Citations="Citations" />
+        <div class="citations-container">
+            <CitationList Citations="Citations" />
+        </div>
     }
     else
     {
@@ -48,7 +50,7 @@
                 </div>
 
                 <h3>@CurrentGraph.Topic</h3>
-                <canvas @ref="canvasReference" id="myCanvas" class="graph-canvas"></canvas>
+                <div @ref="canvasReference" id="myCanvas" class="graph-canvas"></div>
             </div>
         }
     }

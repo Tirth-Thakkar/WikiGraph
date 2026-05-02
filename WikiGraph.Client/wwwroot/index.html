@@ -7,6 +7,8 @@
     <title>WikiGraph</title>
     <base href="/" />
     <link rel="stylesheet" href="css/app.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/graphology/0.26.0/graphology.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sigma.js/3.0.2/sigma.min.js"></script>
     <!-- If you add any scoped CSS files, uncomment the following to load them
     <link href="WikiGraph.Client.styles.css" rel="stylesheet" /> -->
 </head>
@@ -25,104 +27,169 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
-    <script src="_framework/blazor.webassembly.js"></script>
-    <script> 
+    <script>
+        
+        function drawNewLabel(context, data, settings) {
+            if (!data.label) return;
 
-    
-    function drawNode(ctx, x, y, radius, text) {
-    // Draw circle
-    ctx.beginPath();
-    ctx.arc(x, y, radius, 0, 2 * Math.PI);
-    ctx.fillStyle = "white";
-    ctx.fill();
-    ctx.strokeStyle = "black";
-    ctx.stroke();
+            const lines = String(data.label).split("\n");
+            const fontSize = settings.labelSize;
+            const fontFamily = settings.labelFont || "Arial";
+            const fontWeight = settings.labelWeight || "normal";
+            const lineHeight = fontSize * 1.2;
 
-    // Draw text (centered)
-    ctx.fillStyle = "black";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.fillText(text, x, y);
-}
-        window.graphCanvas = { 
-            renderGraph: function (arg,arg2) { 
-                //Graph Setup Begins here
-                var canvas = document.getElementById("myCanvas"); 
-                var context = canvas.getContext("2d"); 
-                const bounds = canvas.getBoundingClientRect();
-                canvas.width = 575;
-                canvas.height = 525;
+            context.save();
+
+            context.font = `${fontWeight} ${fontSize}px "${fontFamily}"`;
+            context.fillStyle = "#1f2a36";
+            context.textAlign = "left";
+            context.textBaseline = "middle";
+
+            const x = data.x + data.size + 6;
+            const startY = data.y - ((lines.length - 1) * lineHeight) / 2;
+
+            lines.forEach((line, index) => {
+                context.fillText(line, x, startY + index * lineHeight);
+            });
+
+            context.restore();
+        }
+
+        function drawNewHover(context, data, settings) {
+            if (!data.label) return;
+
+            const lines = String(data.label).split("\n");
+            const fontSize = settings.labelSize;
+            const fontFamily = settings.labelFont || "Arial";
+            const fontWeight = settings.labelWeight || "normal";
+            const lineHeight = fontSize * 1.2;
+            const paddingX = 8;
+            const paddingY = 6;
+            const labelGap = 6;
+
+            context.save();
+
+            context.font = `${fontWeight} ${fontSize}px "${fontFamily}"`;
+            const labelWidth = Math.max(...lines.map(line => context.measureText(line).width));
+            const labelX = data.x + data.size + labelGap;
+            const boxX = data.x - data.size - paddingX;
+            const boxY = data.y - Math.max(data.size * 2, lines.length * lineHeight) / 2 - paddingY;
+            const boxWidth = labelX + labelWidth + paddingX - boxX;
+            const boxHeight = Math.max(data.size * 2, lines.length * lineHeight) + paddingY * 2;
+            const startY = data.y - ((lines.length - 1) * lineHeight) / 2;
+
+            context.fillStyle = "rgba(255, 250, 240, 0.96)";
+            context.strokeStyle = "#d8cfba";
+            context.lineWidth = 1;
+            context.fillRect(boxX, boxY, boxWidth, boxHeight);
+            context.strokeRect(boxX, boxY, boxWidth, boxHeight);
+
+            context.beginPath();
+            context.arc(data.x, data.y, data.size, 0, Math.PI * 2);
+            context.fillStyle = data.color;
+            context.fill();
+
+            context.fillStyle = "#1f2a36";
+            context.textAlign = "left";
+            context.textBaseline = "middle";
+
+            lines.forEach((line, index) => {
+                context.fillText(line, labelX, startY + index * lineHeight);
+            });
+
+            context.restore();
+        }
+
+        function splitWord(label){
+            const wordArray = String(label).trim().split(" ");
+            const newLabel = [];
+            for(let i = 0; i < wordArray.length; i+= 3){
+                newLabel.push(wordArray.slice(i,i+3).join(" "))
+            }
+            return newLabel.join("\n");
+        }
+
+
+
+        window.graphCanvas = {
+            renderer: null,
+
+            renderGraph: function (container, graphDto) {
+                //Check to see if the current Graph instance is in an HTML element(Library Intialization)
+                if (!(container instanceof HTMLElement)) {
+                    console.error("graphCanvas.renderGraph expected an HTMLElement container.", container);
+                    return;
+                }
+
+                if (window.graphCanvas.renderer) {
+                    window.graphCanvas.renderer.kill();
+                    window.graphCanvas.renderer = null;
+                }
+
+                container.innerHTML = "";
+
+                //Set up a new Graph using the graphology libary 
+                //graphDto?.nodes is from the JSON serialization of the Orginal object 
+                const graph = new graphology.Graph();
+                const nodes = graphDto?.nodes ?? [];
+                const edges = graphDto?.edges ?? [];
+                const radius = Math.max(1, nodes.length / 3);
                 
-                //Setup ends here
-                context.fillStyle = "White";
-                context.fillRect(0, 0, canvas.width, canvas.height);
-                context.fillStyle = "Black";
-                context.font = "10px monospace";
-                context.textAlign = "center"; 
-                context.textBaseline = "middle"; 
-                console.log(arg,arg2,arg2.nodes.length);
+                //Loop through nodes
+                nodes.forEach((node, index) => {
+                    const id = String(node.id);
+                    const angle = (2 * Math.PI * index) / Math.max(1, nodes.length);
+                    //If the node is the main topic set the index
+                    const isMainTopic = index === 0;
+                    //see if node is a related topic or supporting detail
+                    const isRelatedTopic = id.includes("detail");
+                    graph.addNode(id, {
+                        label: splitWord(node.label),
+                        x: isMainTopic ? 0 : radius * Math.cos(angle),
+                        y: isMainTopic ? 0 : radius * Math.sin(angle),
+                        size: 2 + 6 * (node.weight ?? 1),
+                        color: isMainTopic ? "#f6f1e3": isRelatedTopic? "#557fc0" : "#b65a5a"
+                    });
+                });
 
+                edges.forEach((edge, index) => {
+                    const source = String(edge.source);
+                    const target = String(edge.target);
+                    const relation = String(edge.relation);
 
-                this.GraphLayout(arg2.nodes,canvas.width,canvas.height,context);
-                context.fillText(arg2.topic,canvas.width/2,canvas.height/2);
-                
-
-            },
-            GraphLayout: function(nodes, width, length,ctx){
-                const cX = width/2;
-                const cY = length/2;
-  
-                const radianSpacing = 2*Math.PI/nodes.length;
-                const r = 200;
-             
-
-                for(let i = 1; i < nodes.length; i++){
-                    
-                    let x = r*Math.cos(i*radianSpacing);
-                    let y = r*Math.sin(i*radianSpacing);
-
-    
-                    if(nodes[i].label.length < 30){
-                        ctx.strokeStyle = "#8aa7cf";
-                        ctx.fillStyle = "rgb(255,255,255)";
-                        ctx.beginPath();       // 1. Start path
-                        ctx.moveTo(cX, cY);      
-                        ctx.lineTo(cX+x, cY+y); 
-                        ctx.stroke();
-
-                        ctx.strokeStyle = "red";
-
-                        ctx.beginPath();
-                        ctx.arc(cX+x,cY+y,40,0,2*Math.PI);
-                        ctx.stroke();
-                        ctx.fill();
-                        
-
-                        ctx.beginPath();
-                        ctx.arc(cX,cY,45,0,2*Math.PI);
-                        ctx.stroke();
-                        ctx.fill();
-
-
-      
-                    ctx.fillStyle = "rgb("+nodes[i].weight*255/5+", 0, 0)"
-
-                    ctx.fillText(nodes[i].label,cX+x,cY+y);
-
+                    if (!graph.hasNode(source) || !graph.hasNode(target)) {
+                        return;
                     }
 
+                    graph.addEdgeWithKey(`${source}-${target}-${index}`, source, target, {
+                        label: edge.relation ?? "",
+                        size: 2,
+                        color: "#64748b"
+                    });
+                });
 
+                window.graphCanvas.renderer = new Sigma(graph, container, {
+                    cameraPanBoundaries:{
+                       boundaries:{
+                        x: [-9,9],
+                        y: [-4,4]
+                       },
+                       tolerance: 25
+                    },
+                    minCameraRatio: 0.4,
+                    maxCameraRatio: 2,
 
-                }
-            },
+                    labelSize: 12,
+                    labelFont: "Times New Roman",
+                    defaultDrawNodeLabel: drawNewLabel,
+                    defaultDrawNodeHover: drawNewHover
+                });
 
-            clearCanvas: function(canvas, context){
-                context.clearCanvas(0,0,canvas.width, canvas.height);
 
             }
-        }; 
+        };
     </script>
+    <script src="_framework/blazor.webassembly.js"></script>
 </body>
 
 </html>
