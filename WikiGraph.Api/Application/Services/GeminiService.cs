@@ -266,13 +266,16 @@ public sealed class GeminiService
             Return strict JSON only with:
             - "answer": a grounded response for the user, that is specfifc to the article and retrieved context. 
                 If the question in the original prompt cannot be easily answered have that as a preface and then provide the input from context. 
-            - "relatedTopics": an array of 2 to 4 short labels
+            - "relatedTopics": an array of 2 to 4 short labels for the main graph branches
+            - "supportingTopics": an array of 4 to 8 concise noun-phrase labels for supporting graph details
 
             Rules:
             - Be specific and useful, not generic.
             - If the input is a topic, produce an in-depth study guide grounded in the article and retrieved context.
             - If the input is a question, answer it directly using the provided context.
             - Mention relationships, definitions, and follow-up reading when helpful.
+            - Make supportingTopics complete labels, not sentence fragments; prefer 2 to 5 words each.
+            - Do not use generic supportingTopics such as Overview, Details, Key Point, or Related Topics.
             - Do not use markdown code fences.
             """
         );
@@ -351,7 +354,8 @@ public sealed class GeminiService
 
             Prior focus: {(priorMessages.Length == 0 ? "this is the first turn in the session." : string.Join(" | ", priorMessages))}
             """,
-            BuildFallbackTopics(prompt, article, matches));
+            BuildFallbackTopics(prompt, article, matches),
+            []);
     }
 
     // Parses Gemini JSON output into the reply model.
@@ -372,7 +376,7 @@ public sealed class GeminiService
             return reply;
         }
 
-        return new GeminiReply(TextTools.Clean(text), BuildFallbackTopics(prompt, article, matches));
+        return new GeminiReply(TextTools.Clean(text), BuildFallbackTopics(prompt, article, matches), []);
     }
 
     // Parses the JSON answer and related topics from the model response.
@@ -391,33 +395,45 @@ public sealed class GeminiService
                 return null;
             }
 
-            var relatedTopics = new List<string>();
-            if (document.RootElement.TryGetProperty("relatedTopics", out var topicsElement) &&
-                topicsElement.ValueKind == JsonValueKind.Array)
-            {
-                foreach (var topic in topicsElement.EnumerateArray())
-                {
-                    if (topic.ValueKind != JsonValueKind.String)
-                    {
-                        continue;
-                    }
-
-                    var value = TextTools.Clean(topic.GetString());
-                    if (!string.IsNullOrWhiteSpace(value))
-                    {
-                        relatedTopics.Add(value);
-                    }
-                }
-            }
+            var relatedTopics = ReadStringArray(document.RootElement, "relatedTopics");
+            var supportingTopics = ReadStringArray(document.RootElement, "supportingTopics");
 
             return new GeminiReply(
                 TextTools.Clean(answerElement.GetString()),
-                relatedTopics.Count == 0 ? BuildFallbackTopics(prompt, article, matches) : relatedTopics);
+                relatedTopics.Count == 0 ? BuildFallbackTopics(prompt, article, matches) : relatedTopics,
+                supportingTopics);
         }
         catch
         {
             return null;
         }
+    }
+
+    // Reads a string array from the JSON response and cleans each label.
+    private static IReadOnlyList<string> ReadStringArray(JsonElement root, string propertyName)
+    {
+        if (!root.TryGetProperty(propertyName, out var arrayElement) ||
+            arrayElement.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+
+        var values = new List<string>();
+        foreach (var item in arrayElement.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+
+            var value = TextTools.Clean(item.GetString());
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                values.Add(value);
+            }
+        }
+
+        return values;
     }
 
     // Builds a safe fallback topic list from the prompt, article, and matches.
@@ -487,4 +503,7 @@ public sealed class GeminiService
     }
 }
 
-public sealed record GeminiReply(string Answer, IReadOnlyList<string> RelatedTopics);
+public sealed record GeminiReply(
+    string Answer,
+    IReadOnlyList<string> RelatedTopics,
+    IReadOnlyList<string> SupportingTopics);

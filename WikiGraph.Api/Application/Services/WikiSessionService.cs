@@ -47,7 +47,7 @@ public sealed class WikiSessionService
         var matches = await _vectorStore.SearchAsync(sessionId, BuildSearchText(prompt, sessionHistory), 4, cancellationToken);
         var reply = await _geminiService.GenerateReplyAsync(prompt, article, sessionHistory, matches, cancellationToken);
         var citations = BuildCitations(article, matches);
-        var graphs = BuildGraphs(prompt, article, reply.RelatedTopics, matches);
+        var graphs = BuildGraphs(prompt, article, reply.RelatedTopics, reply.SupportingTopics, matches);
 
         _sessionRepository.SaveTurn(
             sessionId,
@@ -139,6 +139,7 @@ public sealed class WikiSessionService
         string prompt,
         WikiArticle article,
         IReadOnlyList<string> relatedTopics,
+        IReadOnlyList<string> intelligentSupportingTopics,
         IReadOnlyList<WikiMatch> matches)
     {
         var topic = string.IsNullOrWhiteSpace(prompt) ? article.Title : prompt;
@@ -153,7 +154,7 @@ public sealed class WikiSessionService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(4)
             .ToArray();
-        var supportingTopics = BuildSupportingTopics(article, matches);
+        var supportingTopics = BuildSupportingTopics(article, matches, intelligentSupportingTopics);
 
         var nodes = new List<GraphNodeDto> { new("topic", topic, 5) };
         var edges = new List<GraphEdgeDto>();
@@ -196,37 +197,70 @@ public sealed class WikiSessionService
     }
 
     // Collects short labels that can hang off the main graph topics.
-    private static IReadOnlyList<string> BuildSupportingTopics(WikiArticle article, IReadOnlyList<WikiMatch> matches)
+    private static IReadOnlyList<string> BuildSupportingTopics(
+        WikiArticle article,
+        IReadOnlyList<WikiMatch> matches,
+        IReadOnlyList<string> intelligentSupportingTopics)
     {
-        // Second ring: short supporting labels derived from related-topic summaries and retrieved section names.
-        return article.RelatedTopicDetails
-            .SelectMany(item => new[] { item.Summary, item.Title })
-            .Concat(matches.Select(match => match.Section))
-            .Concat(article.Sections.Select(section => section.Heading))
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .SelectMany(value => SplitGraphLabels(value))
+        // Second ring: prefer Gemini-written labels, then fall back to stable Wikipedia titles/headings.
+        return intelligentSupportingTopics
+            .Concat(BuildFallbackSupportingTopics(article, matches))
+            .Select(NormalizeGraphLabel)
+            .Where(IsUsefulGraphLabel)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(8)
             .ToArray();
     }
 
-    // Splits longer text into a few graph-friendly labels.
-    private static IEnumerable<string> SplitGraphLabels(string value)
+    // Uses structured Wikipedia labels only; fixes summary sentences into awkward graph nodes issue.
+    private static IEnumerable<string> BuildFallbackSupportingTopics(WikiArticle article, IReadOnlyList<WikiMatch> matches)
     {
-        var cleaned = TextTools.Clean(value);
-        if (string.IsNullOrWhiteSpace(cleaned))
+        return article.RelatedTopicDetails.Select(item => item.Title)
+            .Concat(matches.Select(match => match.Section))
+            .Concat(article.Sections.Select(section => section.Heading));
+    }
+
+    // Normalizes graph labels from Gemini and Wikipedia headings before filtering.
+    private static string NormalizeGraphLabel(string value)
+    {
+        var label = TextTools.Clean(value).Trim(' ', '.', ',', ';', ':');
+        const string relatedTopicPrefix = "Related Topic:";
+        if (label.StartsWith(relatedTopicPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            return [];
+            label = TextTools.Clean(label[relatedTopicPrefix.Length..]).Trim(' ', '.', ',', ';', ':');
         }
 
-        var labels = cleaned
-            .Split([",", ";", ".", ":"], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(TextTools.Clean)
-            .Where(label => label.Length > 2)
-            .Take(3)
-            .ToArray();
+        return label;
+    }
 
-        return labels.Length == 0 ? [cleaned] : labels;
+    // Keeps graph labels short, specific, and noun-phrase-like.
+    private static bool IsUsefulGraphLabel(string label)
+    {
+        if (string.IsNullOrWhiteSpace(label) || label.Length is <= 2 or > 64)
+        {
+            return false;
+        }
+
+        if (label.Equals("Overview", StringComparison.OrdinalIgnoreCase) ||
+            label.Equals("Details", StringComparison.OrdinalIgnoreCase) ||
+            label.Equals("Key Point", StringComparison.OrdinalIgnoreCase) ||
+            label.Equals("Related Topic", StringComparison.OrdinalIgnoreCase) ||
+            label.Equals("Related Topics", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var terms = TextTools.ExtractTerms(label, 7);
+        if (terms.Count > 6)
+        {
+            return false;
+        }
+
+        var padded = $" {label} ";
+        return !padded.Contains(" is ", StringComparison.OrdinalIgnoreCase) &&
+               !padded.Contains(" are ", StringComparison.OrdinalIgnoreCase) &&
+               !padded.Contains(" was ", StringComparison.OrdinalIgnoreCase) &&
+               !padded.Contains(" were ", StringComparison.OrdinalIgnoreCase);
     }
 
     // Derives a short session title from the prompt text.
