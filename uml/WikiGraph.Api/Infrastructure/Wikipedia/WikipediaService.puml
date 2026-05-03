@@ -1,13 +1,38 @@
 @startuml
 class WikipediaService <<sealed>> {
+    - <<const>> SearchResultLimit : int = 8
+    - <<const>> MaxArticleSectionsToFetch : int = 16
+    - <<const>> MaxSearchQueryLength : int = 280
     + WikipediaService(httpClient:HttpClient, logger:ILogger<WikipediaService>)
-    + <<async>> GetArticleAsync(topic:string, wikipediaUrl:string?, cancellationToken:CancellationToken) : Task<WikiArticle>
-    - <<async>> SearchBestTitleAsync(requestedTitle:string, wikipediaUrl:string, cancellationToken:CancellationToken) : Task<string>
+    + <<async>> GetArticleAsync(topic:string, wikipediaUrl:string?, lookupPlan:WikiLookupPlan?, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> ResolveSearchAsync(requestedTitle:string, wikipediaUrl:string, originalPrompt:string, focusPhrases:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<WikiSearchResolution>
+    - <<async>> SearchAllCandidateQueriesAsync(rawSearchTexts:IEnumerable<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiSearchCandidate>>
+    - <<async>> SearchCandidatesAsync(searchText:string, cancellationToken:CancellationToken) : Task<WikiSearchResults>
+    - <<async>> SearchLinkedArticleSectionHintsAsync(linkedTitle:string, focusPhrases:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<string>>
+    - {static} BuildSearchQuery(prompt:string) : string
+    - {static} SelectBestSearchCandidate(prompt:string, candidates:IReadOnlyList<WikiSearchCandidate>) : WikiSearchCandidate?
+    - {static} ScoreSearchCandidate(candidate:WikiSearchCandidate, prompt:string, termWeights:IReadOnlyDictionary<string, double>) : double
+    - {static} SearchCandidateText(candidate:WikiSearchCandidate) : string
+    - {static} ReadSuggestedSections(candidate:WikiSearchCandidate) : IReadOnlyList<string>
+    - {static} ReadSearchText(element:JsonElement, propertyName:string) : string
     - <<async>> LoadPageAsync(title:string, includeLinks:bool, cancellationToken:CancellationToken) : Task<JsonElement?>
-    - <<async>> BuildArticleAsync(page:JsonElement, originalTopic:string, fallbackUrl:string, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> BuildArticleAsync(page:JsonElement, originalTopic:string, fallbackUrl:string, resolution:WikiSearchResolution, cancellationToken:CancellationToken) : Task<WikiArticle>
     - <<async>> LoadRelatedTopicsAsync(linkedTitles:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiTopicReference>>
     - <<async>> GetJsonDocumentAsync(relativeUrl:string, cancellationToken:CancellationToken) : Task<JsonDocument>
-    - {static} AddSections(article:WikiArticle, extract:string) : void
+    - <<async>> AddSectionsAsync(article:WikiArticle, extract:string, title:string, prompt:string, suggestedSections:IReadOnlyList<string>, focusPhrases:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task
+    - {static} SelectSectionsForPrompt(sections:IReadOnlyList<WikiApiSection>, prompt:string, suggestedSections:IReadOnlyList<string>, focusPhrases:IReadOnlyList<string>, maxSections:int) : IReadOnlyList<WikiApiSection>
+    - {static} ScoreSection(section:WikiApiSection, termWeights:IReadOnlyDictionary<string, double>, suggestedHeadings:IReadOnlySet<string>) : double
+    - {static} BuildScoringText(prompt:string, focusPhrases:IReadOnlyList<string>) : string
+    - {static} BuildFocusPhrases(prompt:string, lookupPlan:WikiLookupPlan?) : IReadOnlyList<string>
+    - {static} BuildQueryTermWeights(queryTerms:IReadOnlySet<string>, documents:IEnumerable<string>) : IReadOnlyDictionary<string, double>
+    - {static} WeightedTermOverlap(text:string, termWeights:IReadOnlyDictionary<string, double>) : double
+    - <<async>> LoadArticleSectionsAsync(title:string, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiApiSection>>
+    - <<async>> LoadSectionTextAsync(title:string, section:WikiApiSection, cancellationToken:CancellationToken) : Task<string>
+    - {static} AddFallbackExtractSections(article:WikiArticle, extract:string) : void
+    - {static} ExtractSectionText(html:string, heading:string) : string
+    - {static} StripHtml(value:string?) : string
+    - {static} TryReadParseText(parse:JsonElement, html:string) : bool
+    - {static} ReadInt(element:JsonElement, propertyName:string) : int?
     - {static} ReadLinkedTitles(page:JsonElement, articleTitle:string) : IReadOnlyList<string>
     - {static} BuildSeedRelatedTopics(title:string, originalTopic:string) : IReadOnlyList<WikiTopicReference>
     - {static} BuildFallbackArticle(title:string, topic:string, wikipediaUrl:string) : WikiArticle
@@ -19,8 +44,39 @@ class WikipediaService <<sealed>> {
     - {static} SplitSentences(text:string) : IEnumerable<string>
     - {static} Capitalize(value:string) : string
 }
+class "HashSet`1"<T> {
+}
 class "ILogger`1"<T> {
 }
+class WikiApiSection <<sealed>> <<record>> {
+    + Heading : string <<get>> <<init>>
+    + Index : string <<get>> <<init>>
+    + Anchor : string? <<get>> <<init>>
+}
+class WikiSearchCandidate <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+    + Snippet : string <<get>> <<init>>
+    + TitleSnippet : string <<get>> <<init>>
+    + SectionTitle : string <<get>> <<init>>
+    + SectionSnippet : string <<get>> <<init>>
+    + Position : int <<get>> <<init>>
+}
+class WikiSearchResults <<sealed>> <<record>> {
+    + Suggestion : string? <<get>> <<init>>
+}
+class WikiSearchResolution <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+}
+class "IReadOnlyList`1"<T> {
+}
+WikipediaService o-> "NonContentSectionHeadings<string>" "HashSet`1"
 WikipediaService --> "_httpClient" HttpClient
 WikipediaService --> "_logger<WikipediaService>" "ILogger`1"
+WikipediaService +-- WikiApiSection
+WikipediaService +-- WikiSearchCandidate
+WikipediaService +-- WikiSearchResults
+WikiSearchResults --> "Candidates<WikiSearchCandidate>" "IReadOnlyList`1"
+WikipediaService +-- WikiSearchResolution
+WikiSearchResolution --> "SuggestedSections<string>" "IReadOnlyList`1"
+WikiSearchResolution --> "FocusPhrases<string>" "IReadOnlyList`1"
 @enduml

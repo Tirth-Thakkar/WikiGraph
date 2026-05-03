@@ -1,12 +1,11 @@
 @startuml
 class ApiEndpointTests {
-    + <<async>> AddArticleEndpoint_ReturnsUpdatedSession() : Task
-    + <<async>> GetGraphsEndpoint_ReturnsSessionGraphs() : Task
-    - {static} BuildController() : SessionController
+    + <<async>> TestAPIUp() : Task
+    - <<async>> TestSessionCreation() : Task
+    - <<async>> TestSessionList() : Task<string>
+    - <<async>> TestSessionDelete(sID:string) : Task
+    - <<async>> TestCreateArticle(sID:string) : Task
+    - <<async>> TestRetriveSession(sID:string) : Task
+    + <<async>> Test() : Task
 }
-class TestConnectionFactory <<sealed>> {
-    + OpenConnection() : SqliteConnection
-}
-ApiEndpointTests +-- TestConnectionFactory
-ISqliteConnectionFactory <|-- TestConnectionFactory
 @enduml

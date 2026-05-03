@@ -3,6 +3,7 @@ class ApiClient <<sealed>> {
     + ApiClient(httpClient:HttpClient)
     + <<async>> GetSessionsAsync(cancellationToken:CancellationToken) : Task<IReadOnlyList<SessionSummary>>
     + <<async>> CreateSessionAsync(request:CreateSessionRequest, cancellationToken:CancellationToken) : Task<SessionSummary>
+    + <<async>> DeleteSessionAsync(sessionId:string) : Task<string>
     + GetSessionAsync(sessionId:string, cancellationToken:CancellationToken) : Task<SessionDetailDto?>
     + <<async>> GetGraphsAsync(sessionId:string, cancellationToken:CancellationToken) : Task<IReadOnlyList<GraphDto>>
     + <<async>> AddArticleAsync(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<SessionDetailDto?>

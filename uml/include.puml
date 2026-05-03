@@ -55,25 +55,61 @@ SessionDetailDto --> "Graphs<GraphDto>" "IReadOnlyList`1"
 MessageDto --> "CreatedUtc" DateTime
 GraphDto --> "Nodes<GraphNodeDto>" "IReadOnlyList`1"
 GraphDto --> "Edges<GraphEdgeDto>" "IReadOnlyList`1"
-class SessionStoreTests {
-    + <<async>> AddArticle_PersistsSessionArtifacts() : Task
-    + CreateSession_ReturnsSortedSessions() : void
+class GeminiServiceTests <<sealed>> {
+    + <<async>> GenerateReplyAsync_UsesKeyedGeminiChatServiceWhenApiKeyIsConfigured() : Task
+    + <<async>> PlanWikipediaLookupAsync_UsesKeyedGeminiChatServiceWhenApiKeyIsConfigured() : Task
+    - {static} BuildProvider(chatCompletionService:IChatCompletionService) : ServiceProvider
+    - {static} BuildGeminiService(provider:IServiceProvider) : GeminiService
 }
-class TestConnectionFactory <<sealed>> {
+class FakeChatCompletionService <<sealed>> {
+    + FakeChatCompletionService(responses:string[])
+    + GetChatMessageContentsAsync(chatHistory:ChatHistory, executionSettings:PromptExecutionSettings?, kernel:Kernel?, cancellationToken:CancellationToken) : Task<IReadOnlyList<ChatMessageContent>>
+    + <<async>> GetStreamingChatMessageContentsAsync(chatHistory:ChatHistory, executionSettings:PromptExecutionSettings?, kernel:Kernel?, cancellationToken:CancellationToken) : IAsyncEnumerable<StreamingChatMessageContent>
+}
+class "Queue`1"<T> {
+}
+class "IReadOnlyDictionary`2"<T1,T2> {
+}
+GeminiServiceTests +-- FakeChatCompletionService
+IChatCompletionService <|-- FakeChatCompletionService
+FakeChatCompletionService --> "_responses<string>" "Queue`1"
+FakeChatCompletionService o-> "Attributes<string,object?>" "IReadOnlyDictionary`2"
+class WikipediaCitationTests <<sealed>> {
+    + <<async>> AddArticleAsync_LoadsPromptRelevantSectionsBeyondTheArticleOpening() : Task
+    + <<async>> AddArticleAsync_WhenUrlIsProvided_KeepsDiscussionCenteredOnThatLink() : Task
+    + <<async>> GetArticleAsync_SearchesOriginalPromptWhenAiLookupPlanDrifts() : Task
+    + BuildCitations_DoesNotInventFragmentForGeneratedSections() : void
+    - {static} BuildSessionService(handler:QueuedWikipediaHandler, database:TempSqliteConnectionFactory) : WikiSessionService
+    - {static} EnqueueMcdonaldsArticle(handler:QueuedWikipediaHandler, firstExpectedQueryPart:string) : void
+    - {static} SectionJson(text:string) : string
+}
+class QueuedWikipediaHandler <<sealed>> {
+    + PendingResponses : int <<get>>
+    + Enqueue(expectedQueryPart:string, json:string) : void
+    # <<override>> SendAsync(request:HttpRequestMessage, cancellationToken:CancellationToken) : Task<HttpResponseMessage>
+}
+class TempSqliteConnectionFactory <<sealed>> {
+    - <<readonly>> _databasePath : string
     + OpenConnection() : SqliteConnection
+    + Dispose() : void
 }
-SessionStoreTests +-- TestConnectionFactory
-ISqliteConnectionFactory <|-- TestConnectionFactory
+class "Queue`1"<T> {
+}
+WikipediaCitationTests +-- QueuedWikipediaHandler
+HttpMessageHandler <|-- QueuedWikipediaHandler
+QueuedWikipediaHandler o-> "_responses<(string ExpectedQueryPart, string Json)>" "Queue`1"
+WikipediaCitationTests +-- TempSqliteConnectionFactory
+ISqliteConnectionFactory <|-- TempSqliteConnectionFactory
+IDisposable <|-- TempSqliteConnectionFactory
 class ApiEndpointTests {
-    + <<async>> AddArticleEndpoint_ReturnsUpdatedSession() : Task
-    + <<async>> GetGraphsEndpoint_ReturnsSessionGraphs() : Task
-    - {static} BuildController() : SessionController
+    + <<async>> TestAPIUp() : Task
+    - <<async>> TestSessionCreation() : Task
+    - <<async>> TestSessionList() : Task<string>
+    - <<async>> TestSessionDelete(sID:string) : Task
+    - <<async>> TestCreateArticle(sID:string) : Task
+    - <<async>> TestRetriveSession(sID:string) : Task
+    + <<async>> Test() : Task
 }
-class TestConnectionFactory <<sealed>> {
-    + OpenConnection() : SqliteConnection
-}
-ApiEndpointTests +-- TestConnectionFactory
-ISqliteConnectionFactory <|-- TestConnectionFactory
 class "Add`1"<T> {
 }
 class ApiAssemblyMarker <<sealed>> {
@@ -84,6 +120,7 @@ class ApiClient <<sealed>> {
     + ApiClient(httpClient:HttpClient)
     + <<async>> GetSessionsAsync(cancellationToken:CancellationToken) : Task<IReadOnlyList<SessionSummary>>
     + <<async>> CreateSessionAsync(request:CreateSessionRequest, cancellationToken:CancellationToken) : Task<SessionSummary>
+    + <<async>> DeleteSessionAsync(sessionId:string) : Task<string>
     + GetSessionAsync(sessionId:string, cancellationToken:CancellationToken) : Task<SessionDetailDto?>
     + <<async>> GetGraphsAsync(sessionId:string, cancellationToken:CancellationToken) : Task<IReadOnlyList<GraphDto>>
     + <<async>> AddArticleAsync(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<SessionDetailDto?>
@@ -109,7 +146,8 @@ class SessionController <<sealed>> {
     + GetSessions() : ActionResult<IReadOnlyList<SessionSummary>>
     + CreateSession(input:CreateSessionRequest?) : ActionResult<SessionSummary>
     + <<async>> AddArticle(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<ActionResult<SessionDetailDto>>
-    + Delete(sessionId:string) : IActionResult
+    + Delete(sessionId:string, cancellationToken:CancellationToken) : IActionResult
+    + Delete2(request:string, cancellationToken:CancellationToken) : IActionResult
     + GetSession(sessionId:string) : ActionResult<SessionDetailDto>
     + GetGraphs(sessionId:string) : ActionResult<IReadOnlyList<GraphDto>>
 }
@@ -180,14 +218,39 @@ class SqliteConnectionExtensions <<static>> {
     + {static} ExecuteNonQuery(connection:SqliteConnection, sql:string) : void
 }
 class WikipediaService <<sealed>> {
+    - <<const>> SearchResultLimit : int = 8
+    - <<const>> MaxArticleSectionsToFetch : int = 16
+    - <<const>> MaxSearchQueryLength : int = 280
     + WikipediaService(httpClient:HttpClient, logger:ILogger<WikipediaService>)
-    + <<async>> GetArticleAsync(topic:string, wikipediaUrl:string?, cancellationToken:CancellationToken) : Task<WikiArticle>
-    - <<async>> SearchBestTitleAsync(requestedTitle:string, wikipediaUrl:string, cancellationToken:CancellationToken) : Task<string>
+    + <<async>> GetArticleAsync(topic:string, wikipediaUrl:string?, lookupPlan:WikiLookupPlan?, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> ResolveSearchAsync(requestedTitle:string, wikipediaUrl:string, originalPrompt:string, focusPhrases:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<WikiSearchResolution>
+    - <<async>> SearchAllCandidateQueriesAsync(rawSearchTexts:IEnumerable<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiSearchCandidate>>
+    - <<async>> SearchCandidatesAsync(searchText:string, cancellationToken:CancellationToken) : Task<WikiSearchResults>
+    - <<async>> SearchLinkedArticleSectionHintsAsync(linkedTitle:string, focusPhrases:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<string>>
+    - {static} BuildSearchQuery(prompt:string) : string
+    - {static} SelectBestSearchCandidate(prompt:string, candidates:IReadOnlyList<WikiSearchCandidate>) : WikiSearchCandidate?
+    - {static} ScoreSearchCandidate(candidate:WikiSearchCandidate, prompt:string, termWeights:IReadOnlyDictionary<string, double>) : double
+    - {static} SearchCandidateText(candidate:WikiSearchCandidate) : string
+    - {static} ReadSuggestedSections(candidate:WikiSearchCandidate) : IReadOnlyList<string>
+    - {static} ReadSearchText(element:JsonElement, propertyName:string) : string
     - <<async>> LoadPageAsync(title:string, includeLinks:bool, cancellationToken:CancellationToken) : Task<JsonElement?>
-    - <<async>> BuildArticleAsync(page:JsonElement, originalTopic:string, fallbackUrl:string, cancellationToken:CancellationToken) : Task<WikiArticle>
+    - <<async>> BuildArticleAsync(page:JsonElement, originalTopic:string, fallbackUrl:string, resolution:WikiSearchResolution, cancellationToken:CancellationToken) : Task<WikiArticle>
     - <<async>> LoadRelatedTopicsAsync(linkedTitles:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiTopicReference>>
     - <<async>> GetJsonDocumentAsync(relativeUrl:string, cancellationToken:CancellationToken) : Task<JsonDocument>
-    - {static} AddSections(article:WikiArticle, extract:string) : void
+    - <<async>> AddSectionsAsync(article:WikiArticle, extract:string, title:string, prompt:string, suggestedSections:IReadOnlyList<string>, focusPhrases:IReadOnlyList<string>, cancellationToken:CancellationToken) : Task
+    - {static} SelectSectionsForPrompt(sections:IReadOnlyList<WikiApiSection>, prompt:string, suggestedSections:IReadOnlyList<string>, focusPhrases:IReadOnlyList<string>, maxSections:int) : IReadOnlyList<WikiApiSection>
+    - {static} ScoreSection(section:WikiApiSection, termWeights:IReadOnlyDictionary<string, double>, suggestedHeadings:IReadOnlySet<string>) : double
+    - {static} BuildScoringText(prompt:string, focusPhrases:IReadOnlyList<string>) : string
+    - {static} BuildFocusPhrases(prompt:string, lookupPlan:WikiLookupPlan?) : IReadOnlyList<string>
+    - {static} BuildQueryTermWeights(queryTerms:IReadOnlySet<string>, documents:IEnumerable<string>) : IReadOnlyDictionary<string, double>
+    - {static} WeightedTermOverlap(text:string, termWeights:IReadOnlyDictionary<string, double>) : double
+    - <<async>> LoadArticleSectionsAsync(title:string, cancellationToken:CancellationToken) : Task<IReadOnlyList<WikiApiSection>>
+    - <<async>> LoadSectionTextAsync(title:string, section:WikiApiSection, cancellationToken:CancellationToken) : Task<string>
+    - {static} AddFallbackExtractSections(article:WikiArticle, extract:string) : void
+    - {static} ExtractSectionText(html:string, heading:string) : string
+    - {static} StripHtml(value:string?) : string
+    - {static} TryReadParseText(parse:JsonElement, html:string) : bool
+    - {static} ReadInt(element:JsonElement, propertyName:string) : int?
     - {static} ReadLinkedTitles(page:JsonElement, articleTitle:string) : IReadOnlyList<string>
     - {static} BuildSeedRelatedTopics(title:string, originalTopic:string) : IReadOnlyList<WikiTopicReference>
     - {static} BuildFallbackArticle(title:string, topic:string, wikipediaUrl:string) : WikiArticle
@@ -199,13 +262,45 @@ class WikipediaService <<sealed>> {
     - {static} SplitSentences(text:string) : IEnumerable<string>
     - {static} Capitalize(value:string) : string
 }
+class "HashSet`1"<T> {
+}
 class "ILogger`1"<T> {
 }
+class WikiApiSection <<sealed>> <<record>> {
+    + Heading : string <<get>> <<init>>
+    + Index : string <<get>> <<init>>
+    + Anchor : string? <<get>> <<init>>
+}
+class WikiSearchCandidate <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+    + Snippet : string <<get>> <<init>>
+    + TitleSnippet : string <<get>> <<init>>
+    + SectionTitle : string <<get>> <<init>>
+    + SectionSnippet : string <<get>> <<init>>
+    + Position : int <<get>> <<init>>
+}
+class WikiSearchResults <<sealed>> <<record>> {
+    + Suggestion : string? <<get>> <<init>>
+}
+class WikiSearchResolution <<sealed>> <<record>> {
+    + Title : string <<get>> <<init>>
+}
+class "IReadOnlyList`1"<T> {
+}
+WikipediaService o-> "NonContentSectionHeadings<string>" "HashSet`1"
 WikipediaService --> "_httpClient" HttpClient
 WikipediaService --> "_logger<WikipediaService>" "ILogger`1"
+WikipediaService +-- WikiApiSection
+WikipediaService +-- WikiSearchCandidate
+WikipediaService +-- WikiSearchResults
+WikiSearchResults --> "Candidates<WikiSearchCandidate>" "IReadOnlyList`1"
+WikipediaService +-- WikiSearchResolution
+WikiSearchResolution --> "SuggestedSections<string>" "IReadOnlyList`1"
+WikiSearchResolution --> "FocusPhrases<string>" "IReadOnlyList`1"
 class WikiSection <<sealed>> <<record>> {
     + Heading : string <<get>> <<init>>
     + Content : string <<get>> <<init>>
+    + Anchor : string? <<get>> <<init>> = null
 }
 class WikiMatch <<sealed>> <<record>> {
     + ChunkId : string <<get>> <<init>>
@@ -218,6 +313,9 @@ class WikiTopicReference <<sealed>> <<record>> {
     + Title : string <<get>> <<init>>
     + SourceUrl : string <<get>> <<init>>
     + Summary : string <<get>> <<init>>
+}
+class WikiLookupPlan <<sealed>> <<record>> {
+    + SearchQuery : string <<get>> <<init>>
 }
 class WikiArticle <<sealed>> {
     + WikiArticle(title:string, sourceUrl:string)
@@ -235,8 +333,11 @@ class TextTools <<static>> {
     + {static} TrimToLength(text:string, maxLength:int) : string
     - {static} AddCurrentTerm(current:StringBuilder, terms:List<string>) : void
 }
+class "IReadOnlyList`1"<T> {
+}
 class "List`1"<T> {
 }
+WikiLookupPlan --> "FocusPhrases<string>" "IReadOnlyList`1"
 WikiArticle o-> "RetrievedUtc" DateTime
 WikiArticle o-> "RelatedArticles<string>" "List`1"
 WikiArticle o-> "RelatedTopicDetails<WikiTopicReference>" "List`1"
@@ -247,9 +348,12 @@ class WikiSessionService <<sealed>> {
     - {static} BuildSearchText(prompt:string, messages:IReadOnlyList<MessageDto>) : string
     - {static} BuildUserMessage(topic:string, wikipediaUrl:string, articleTitle:string) : string
     - {static} BuildCitations(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<CitationDto>
-    - {static} BuildGraphs(prompt:string, article:WikiArticle, relatedTopics:IReadOnlyList<string>, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<GraphDto>
-    - {static} BuildSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<string>
-    - {static} SplitGraphLabels(value:string) : IEnumerable<string>
+    - {static} BuildCitationUrl(sourceUrl:string, anchor:string?) : string
+    - {static} BuildGraphs(prompt:string, article:WikiArticle, relatedTopics:IReadOnlyList<string>, intelligentSupportingTopics:IReadOnlyList<string>, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<GraphDto>
+    - {static} BuildSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>, intelligentSupportingTopics:IReadOnlyList<string>) : IReadOnlyList<string>
+    - {static} BuildFallbackSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IEnumerable<string>
+    - {static} NormalizeGraphLabel(value:string) : string
+    - {static} IsUsefulGraphLabel(label:string) : bool
     - {static} InferTitle(prompt:string) : string
 }
 WikiSessionService --> "_wikipediaService" WikipediaService
@@ -257,16 +361,23 @@ WikiSessionService --> "_geminiService" GeminiService
 WikiSessionService --> "_sessionRepository" SqliteSessionRepository
 WikiSessionService --> "_vectorStore" SqliteVectorStore
 class GeminiService <<sealed>> {
+    - <<const>> ChatServiceId : string = "wikigraph-chat"
+    - <<const>> EmbeddingServiceId : string = "wikigraph-embeddings"
     - <<readonly>> _chatCompletionService : IChatCompletionService?
     - <<readonly>> _embeddingGenerator : IEmbeddingGenerator<string, Embedding<float>>?
     + GeminiService(options:IOptions<GeminiOptions>, logger:ILogger<GeminiService>)
     + GeminiService(serviceProvider:IServiceProvider, options:IOptions<GeminiOptions>, logger:ILogger<GeminiService>)
     + <<async>> GenerateReplyAsync(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>, cancellationToken:CancellationToken) : Task<GeminiReply>
     + <<async>> CreateEmbeddingAsync(text:string, cancellationToken:CancellationToken) : Task<float[]?>
+    + <<async>> PlanWikipediaLookupAsync(prompt:string, wikipediaUrl:string?, sessionHistory:IReadOnlyList<MessageDto>, cancellationToken:CancellationToken) : Task<WikiLookupPlan>
+    - {static} BuildLookupPlanningHistory(prompt:string, wikipediaUrl:string?, sessionHistory:IReadOnlyList<MessageDto>) : ChatHistory
+    - {static} ReadLookupPlan(responseText:string?, fallback:WikiLookupPlan) : WikiLookupPlan
+    - {static} BuildFallbackLookupPlan(prompt:string) : WikiLookupPlan
     - {static} BuildChatHistory(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>) : ChatHistory
     - {static} BuildFallbackReply(prompt:string, article:WikiArticle, sessionHistory:IReadOnlyList<MessageDto>, matches:IReadOnlyList<WikiMatch>) : GeminiReply
     - {static} ReadReply(responseText:string?, article:WikiArticle, prompt:string, matches:IReadOnlyList<WikiMatch>) : GeminiReply?
     - {static} TryParseReply(text:string, prompt:string, article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : GeminiReply?
+    - {static} ReadStringArray(root:JsonElement, propertyName:string) : IReadOnlyList<string>
     - {static} BuildFallbackTopics(prompt:string, article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<string>
     - {static} StripCodeFence(text:string) : string
     - {static} ReadGeneratedText(json:string) : string?
@@ -281,4 +392,5 @@ class "IReadOnlyList`1"<T> {
 GeminiService --> "_options" GeminiOptions
 GeminiService --> "_logger<GeminiService>" "ILogger`1"
 GeminiReply --> "RelatedTopics<string>" "IReadOnlyList`1"
+GeminiReply --> "SupportingTopics<string>" "IReadOnlyList`1"
 @enduml

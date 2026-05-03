@@ -5,9 +5,12 @@ class WikiSessionService <<sealed>> {
     - {static} BuildSearchText(prompt:string, messages:IReadOnlyList<MessageDto>) : string
     - {static} BuildUserMessage(topic:string, wikipediaUrl:string, articleTitle:string) : string
     - {static} BuildCitations(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<CitationDto>
-    - {static} BuildGraphs(prompt:string, article:WikiArticle, relatedTopics:IReadOnlyList<string>, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<GraphDto>
-    - {static} BuildSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<string>
-    - {static} SplitGraphLabels(value:string) : IEnumerable<string>
+    - {static} BuildCitationUrl(sourceUrl:string, anchor:string?) : string
+    - {static} BuildGraphs(prompt:string, article:WikiArticle, relatedTopics:IReadOnlyList<string>, intelligentSupportingTopics:IReadOnlyList<string>, matches:IReadOnlyList<WikiMatch>) : IReadOnlyList<GraphDto>
+    - {static} BuildSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>, intelligentSupportingTopics:IReadOnlyList<string>) : IReadOnlyList<string>
+    - {static} BuildFallbackSupportingTopics(article:WikiArticle, matches:IReadOnlyList<WikiMatch>) : IEnumerable<string>
+    - {static} NormalizeGraphLabel(value:string) : string
+    - {static} IsUsefulGraphLabel(label:string) : bool
     - {static} InferTitle(prompt:string) : string
 }
 WikiSessionService --> "_wikipediaService" WikipediaService

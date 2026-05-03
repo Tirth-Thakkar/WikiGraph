@@ -1,0 +1,21 @@
+@startuml
+class GeminiServiceTests <<sealed>> {
+    + <<async>> GenerateReplyAsync_UsesKeyedGeminiChatServiceWhenApiKeyIsConfigured() : Task
+    + <<async>> PlanWikipediaLookupAsync_UsesKeyedGeminiChatServiceWhenApiKeyIsConfigured() : Task
+    - {static} BuildProvider(chatCompletionService:IChatCompletionService) : ServiceProvider
+    - {static} BuildGeminiService(provider:IServiceProvider) : GeminiService
+}
+class FakeChatCompletionService <<sealed>> {
+    + FakeChatCompletionService(responses:string[])
+    + GetChatMessageContentsAsync(chatHistory:ChatHistory, executionSettings:PromptExecutionSettings?, kernel:Kernel?, cancellationToken:CancellationToken) : Task<IReadOnlyList<ChatMessageContent>>
+    + <<async>> GetStreamingChatMessageContentsAsync(chatHistory:ChatHistory, executionSettings:PromptExecutionSettings?, kernel:Kernel?, cancellationToken:CancellationToken) : IAsyncEnumerable<StreamingChatMessageContent>
+}
+class "Queue`1"<T> {
+}
+class "IReadOnlyDictionary`2"<T1,T2> {
+}
+GeminiServiceTests +-- FakeChatCompletionService
+IChatCompletionService <|-- FakeChatCompletionService
+FakeChatCompletionService --> "_responses<string>" "Queue`1"
+FakeChatCompletionService o-> "Attributes<string,object?>" "IReadOnlyDictionary`2"
+@enduml

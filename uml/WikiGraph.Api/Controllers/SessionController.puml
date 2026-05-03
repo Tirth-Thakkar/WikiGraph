@@ -4,7 +4,8 @@ class SessionController <<sealed>> {
     + GetSessions() : ActionResult<IReadOnlyList<SessionSummary>>
     + CreateSession(input:CreateSessionRequest?) : ActionResult<SessionSummary>
     + <<async>> AddArticle(sessionId:string, request:AddWikiArticleRequest, cancellationToken:CancellationToken) : Task<ActionResult<SessionDetailDto>>
-    + Delete(sessionId:string) : IActionResult
+    + Delete(sessionId:string, cancellationToken:CancellationToken) : IActionResult
+    + Delete2(request:string, cancellationToken:CancellationToken) : IActionResult
     + GetSession(sessionId:string) : ActionResult<SessionDetailDto>
     + GetGraphs(sessionId:string) : ActionResult<IReadOnlyList<GraphDto>>
 }

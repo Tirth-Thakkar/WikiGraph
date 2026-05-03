@@ -2,6 +2,7 @@
 class WikiSection <<sealed>> <<record>> {
     + Heading : string <<get>> <<init>>
     + Content : string <<get>> <<init>>
+    + Anchor : string? <<get>> <<init>> = null
 }
 class WikiMatch <<sealed>> <<record>> {
     + ChunkId : string <<get>> <<init>>
@@ -14,6 +15,9 @@ class WikiTopicReference <<sealed>> <<record>> {
     + Title : string <<get>> <<init>>
     + SourceUrl : string <<get>> <<init>>
     + Summary : string <<get>> <<init>>
+}
+class WikiLookupPlan <<sealed>> <<record>> {
+    + SearchQuery : string <<get>> <<init>>
 }
 class WikiArticle <<sealed>> {
     + WikiArticle(title:string, sourceUrl:string)
@@ -31,8 +35,11 @@ class TextTools <<static>> {
     + {static} TrimToLength(text:string, maxLength:int) : string
     - {static} AddCurrentTerm(current:StringBuilder, terms:List<string>) : void
 }
+class "IReadOnlyList`1"<T> {
+}
 class "List`1"<T> {
 }
+WikiLookupPlan --> "FocusPhrases<string>" "IReadOnlyList`1"
 WikiArticle o-> "RetrievedUtc" DateTime
 WikiArticle o-> "RelatedArticles<string>" "List`1"
 WikiArticle o-> "RelatedTopicDetails<WikiTopicReference>" "List`1"

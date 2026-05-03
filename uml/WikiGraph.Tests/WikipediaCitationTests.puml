@@ -1,0 +1,29 @@
+@startuml
+class WikipediaCitationTests <<sealed>> {
+    + <<async>> AddArticleAsync_LoadsPromptRelevantSectionsBeyondTheArticleOpening() : Task
+    + <<async>> AddArticleAsync_WhenUrlIsProvided_KeepsDiscussionCenteredOnThatLink() : Task
+    + <<async>> GetArticleAsync_SearchesOriginalPromptWhenAiLookupPlanDrifts() : Task
+    + BuildCitations_DoesNotInventFragmentForGeneratedSections() : void
+    - {static} BuildSessionService(handler:QueuedWikipediaHandler, database:TempSqliteConnectionFactory) : WikiSessionService
+    - {static} EnqueueMcdonaldsArticle(handler:QueuedWikipediaHandler, firstExpectedQueryPart:string) : void
+    - {static} SectionJson(text:string) : string
+}
+class QueuedWikipediaHandler <<sealed>> {
+    + PendingResponses : int <<get>>
+    + Enqueue(expectedQueryPart:string, json:string) : void
+    # <<override>> SendAsync(request:HttpRequestMessage, cancellationToken:CancellationToken) : Task<HttpResponseMessage>
+}
+class TempSqliteConnectionFactory <<sealed>> {
+    - <<readonly>> _databasePath : string
+    + OpenConnection() : SqliteConnection
+    + Dispose() : void
+}
+class "Queue`1"<T> {
+}
+WikipediaCitationTests +-- QueuedWikipediaHandler
+HttpMessageHandler <|-- QueuedWikipediaHandler
+QueuedWikipediaHandler o-> "_responses<(string ExpectedQueryPart, string Json)>" "Queue`1"
+WikipediaCitationTests +-- TempSqliteConnectionFactory
+ISqliteConnectionFactory <|-- TempSqliteConnectionFactory
+IDisposable <|-- TempSqliteConnectionFactory
+@enduml
