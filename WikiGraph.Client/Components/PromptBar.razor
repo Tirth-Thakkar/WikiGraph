@@ -54,6 +54,7 @@
     [Parameter]
     public EventCallback OnSubmit { get; set; }
 
+    @* This is what allows the Submit button to call the parent method from the child *@
     private Task HandleSubmit() => OnSubmit.InvokeAsync();
 
     private Task HandlePromptChanged(ChangeEventArgs args) =>

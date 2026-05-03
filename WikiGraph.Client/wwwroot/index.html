@@ -106,8 +106,8 @@
         function splitWord(label){
             const wordArray = String(label).trim().split(" ");
             const newLabel = [];
-            for(let i = 0; i < wordArray.length; i+= 5){
-                newLabel.push(wordArray.slice(i,i+5).join(" "))
+            for(let i = 0; i < wordArray.length; i+= 2){
+                newLabel.push(wordArray.slice(i,i+2).join(" "))
             }
             return newLabel.join("\n");
         }
@@ -153,9 +153,9 @@
                         x: isMainTopic ? 0 : radius * Math.cos(angle),
                         y: isMainTopic ? 0 : radius * Math.sin(angle),
                         //Set the node side based of the node weight
-                        size: 2 + 3 * (node.weight),
+                        size: 2 + 4 * (node.weight),
                         //Sets Colors with the Turnary statement based on thee types of node
-                        color: isMainTopic ? "#f6f1e3": isRelatedTopic? "#2e5793" : "#557fc0"
+                        color: isMainTopic ? "#c42323;": isRelatedTopic? "#3965a7" : "#284c83"
                     });
                 });
 
@@ -173,7 +173,7 @@
 
                     graph.addEdgeWithKey(`${source}-${target}-${index}`, source, target, {
                         size: (relation.includes("supports"))? 2: 4,
-                        color: (relation.includes("supports"))? "#557fc0": "#b3a68a"
+                        color: (relation.includes("supports"))? "#0c0f11": "#a30d0d"
                     });
                 });
 
@@ -186,7 +186,7 @@
                        tolerance: 50
                     },
                     minCameraRatio: 0.3,
-                    maxCameraRatio: 0.7,
+                    maxCameraRatio: 1.25,
 
                     labelSize: 12,
                     labelFont: "Times New Roman",

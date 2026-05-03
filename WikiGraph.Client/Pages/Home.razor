@@ -12,8 +12,8 @@
         <h1>Prompt to have a comprehensive summary of a topic</h1>
         @* DemoPrompt *@
         <div class="hero-actions">
-            <button class="send demo" @onclick="RunDemo" disabled="@isBusy">Try demo prompt</button>
-            <p class="hero-note">Client API target <code>http://localhost:5052</code></p>
+            <button class="send" @onclick="RunDemo" disabled="@isBusy">Try demo prompt</button>
+            <p class="api-note">Client API target <code>http://localhost:5052</code></p>
         </div>
   </div>
 </section>
@@ -28,6 +28,7 @@
     OnSubmit="SubmitPrompt" />
 
 @code {
+    @* Variables needed for Session Creation *@
     private string? selectedSessionId;
     private bool isBusy;
     private string? errorMessage;
@@ -84,11 +85,13 @@
 
     private async Task<string> EnsureSelectedSessionAsync()
     {
+        @* If string is empty or Null just return the session id *@
         if (!string.IsNullOrWhiteSpace(selectedSessionId))
         {
             return selectedSessionId;
         }
 
+        @* String used to Infer Title *@
         var titleSeed = string.IsNullOrWhiteSpace(prompt) ? wikiUrl : prompt;
         var session = await ApiClient.CreateSessionAsync(new CreateSessionRequest(InferTitle(titleSeed)));
         selectedSessionId = session.SessionId;
@@ -116,16 +119,19 @@
     }
 
     private static string InferTitle(string value)
-    {
+    {   
+        @* tries to create a Uri where the uri variable is the result*@
         if (Uri.TryCreate(value, UriKind.Absolute, out var uri))
         {
+            @* if uri Creation sucessful get the last URI Segment and show *@
             var segment = uri.Segments.LastOrDefault()?.Trim('/');
+            @* if String is not Null get a new cleaned string *@
             if (!string.IsNullOrWhiteSpace(segment))
             {
                 value = Uri.UnescapeDataString(segment.Replace('_', ' '));
             }
         }
-
+        @* Split the String (removes empty values and white space as well) and then return the infered title *@
         var title = value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Take(5);
         return string.Join(' ', title).Trim() is { Length: > 0 } result ? result : "New session";
     }
