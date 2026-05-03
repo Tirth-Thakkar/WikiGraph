@@ -39,11 +39,11 @@ class "IReadOnlyList`1"<T> {
 }
 SessionSummary --> "CreatedUtc" DateTime
 SessionSummary --> "LastAccessUtc" DateTime
-SessionDetailDto --> "Session" SessionSummary
-SessionDetailDto --> "Messages<MessageDto>" "IReadOnlyList`1"
-SessionDetailDto --> "Citations<CitationDto>" "IReadOnlyList`1"
-SessionDetailDto --> "Graphs<GraphDto>" "IReadOnlyList`1"
+SessionDetailDto --> SessionSummary : Session
+SessionDetailDto --> "IReadOnlyList`1" : Messages<MessageDto>
+SessionDetailDto --> "IReadOnlyList`1" : Citations<CitationDto>
+SessionDetailDto --> "IReadOnlyList`1" : Graphs<GraphDto>
 MessageDto --> "CreatedUtc" DateTime
-GraphDto --> "Nodes<GraphNodeDto>" "IReadOnlyList`1"
-GraphDto --> "Edges<GraphEdgeDto>" "IReadOnlyList`1"
+GraphDto --> "IReadOnlyList`1" : Nodes<GraphNodeDto>
+GraphDto --> "IReadOnlyList`1" : Edges<GraphEdgeDto>
 @enduml
