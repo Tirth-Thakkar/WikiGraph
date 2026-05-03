@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/uml"
-PNG_DPI="${UML_PNG_DPI:-500}"
+PNG_DPI="${UML_PNG_DPI:-250}"
 ENABLE_PNG=0
 
 usage() {
