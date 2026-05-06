@@ -7,9 +7,9 @@ left to right direction
 skinparam linetype ortho
 skinparam shadowing false
 skinparam roundCorner 6
-skinparam ranksep 65
-skinparam nodesep 65
-skinparam padding 8
+skinparam ranksep 45
+skinparam nodesep 45
+skinparam padding 5
 skinparam WrapWidth 220
 skinparam DefaultFontSize 12
 skinparam RectangleFontSize 12
@@ -63,14 +63,14 @@ Tests ..> Persistence
 ' Detailed all-in-one class graph. This keeps generated class members and
 ' associations for inspection while using the same theme as every UML render.
 !theme mars
-scale max 2048*2048
+scale max 1920*1920
 left to right direction
 skinparam linetype ortho
 skinparam shadowing false
 skinparam roundCorner 6
-skinparam ranksep 140
-skinparam nodesep 140
-skinparam padding 10
+skinparam ranksep 100
+skinparam nodesep 100
+skinparam padding 6
 skinparam WrapWidth 520
 skinparam DefaultFontSize 12
 skinparam ClassFontSize 13

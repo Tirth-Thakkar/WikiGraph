@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/uml"
-PNG_DPI="${UML_PNG_DPI:-300}"
+PNG_DPI="${UML_PNG_DPI:-500}"
 ENABLE_PNG=0
 export PLANTUML_LIMIT_SIZE="${PLANTUML_LIMIT_SIZE:-8192}"
 
@@ -85,9 +85,9 @@ left to right direction
 skinparam linetype ortho
 skinparam shadowing false
 skinparam roundCorner 6
-skinparam ranksep 65
-skinparam nodesep 65
-skinparam padding 8
+skinparam ranksep 45
+skinparam nodesep 45
+skinparam padding 5
 skinparam WrapWidth 220
 skinparam DefaultFontSize 12
 skinparam RectangleFontSize 12
@@ -141,14 +141,14 @@ Tests ..> Persistence
 ' Detailed all-in-one class graph. This keeps generated class members and
 ' associations for inspection while using the same theme as every UML render.
 !theme mars
-scale max 2048*2048
+scale max 1920*1920
 left to right direction
 skinparam linetype ortho
 skinparam shadowing false
 skinparam roundCorner 6
-skinparam ranksep 140
-skinparam nodesep 140
-skinparam padding 10
+skinparam ranksep 100
+skinparam nodesep 100
+skinparam padding 6
 skinparam WrapWidth 520
 skinparam DefaultFontSize 12
 skinparam ClassFontSize 13
@@ -175,16 +175,16 @@ while IFS= read -r -d '' puml_file; do
     head -n 1 "$puml_file"
     cat <<'LAYOUT'
 '
-' Detailed per-file layout for readable subdiagram renders.
+' Detailed per-file layout for horizontal subdiagram renders.
 !theme mars
 scale max 1024*768
-top to bottom direction
+left to right direction
 skinparam linetype ortho
 skinparam shadowing false
 skinparam roundCorner 6
-skinparam ranksep 120
-skinparam nodesep 120
-skinparam padding 10
+skinparam ranksep 80
+skinparam nodesep 50
+skinparam padding 6
 skinparam WrapWidth 520
 skinparam DefaultFontSize 12
 skinparam ClassFontSize 13

@@ -1,15 +1,15 @@
 @startuml
 '
-' Detailed per-file layout for readable subdiagram renders.
+' Detailed per-file layout for horizontal subdiagram renders.
 !theme mars
 scale max 1024*768
-top to bottom direction
+left to right direction
 skinparam linetype ortho
 skinparam shadowing false
 skinparam roundCorner 6
-skinparam ranksep 120
-skinparam nodesep 120
-skinparam padding 10
+skinparam ranksep 80
+skinparam nodesep 50
+skinparam padding 6
 skinparam WrapWidth 520
 skinparam DefaultFontSize 12
 skinparam ClassFontSize 13
