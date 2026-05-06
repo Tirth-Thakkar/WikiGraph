@@ -1,4 +1,23 @@
 @startuml
+'
+' Detailed per-file layout for readable subdiagram renders.
+!theme mars
+scale max 1024*768
+top to bottom direction
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam ranksep 120
+skinparam nodesep 120
+skinparam padding 10
+skinparam WrapWidth 520
+skinparam DefaultFontSize 12
+skinparam ClassFontSize 13
+skinparam ClassAttributeFontSize 11
+skinparam ClassStereotypeFontSize 10
+skinparam ArrowFontSize 10
+skinparam classAttributeIconSize 0
+hide empty members
 class HealthController <<sealed>> {
     + Get() : IActionResult
 }

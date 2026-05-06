@@ -3,8 +3,9 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT_DIR="$ROOT_DIR/uml"
-PNG_DPI="${UML_PNG_DPI:-250}"
+PNG_DPI="${UML_PNG_DPI:-300}"
 ENABLE_PNG=0
+export PLANTUML_LIMIT_SIZE="${PLANTUML_LIMIT_SIZE:-8192}"
 
 usage() {
   echo "Usage: $0 [output_dir] [--png]"
@@ -70,24 +71,133 @@ dotnet tool run --allow-roll-forward puml-gen \
 
 INCLUDE_PUML="$OUT_DIR/include.puml"
 if [[ -f "$INCLUDE_PUML" ]]; then
+  generated_include="$(mktemp)"
+  cp "$INCLUDE_PUML" "$generated_include"
+
   tmp_file="$(mktemp)"
-  {
-    head -n 1 "$INCLUDE_PUML"
-    cat <<'LAYOUT'
+  cat <<'OVERVIEW' > "$tmp_file"
+@startuml
 '
-' Use a built-in PlantUML theme preset. 
+' Simplified overview.
+' The detailed all-in-one diagram is emitted from this same file as include-detailed.
 !theme mars
 left to right direction
 skinparam linetype ortho
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam ranksep 65
+skinparam nodesep 65
+skinparam padding 8
+skinparam WrapWidth 220
+skinparam DefaultFontSize 12
+skinparam RectangleFontSize 12
+skinparam ArrowFontSize 10
+
+title WikiGraph UML Overview
+
+rectangle "<b>WikiGraph.Client</b>\nProgram\nApiClient" as Client
+
+rectangle "<b>API Controllers</b>\nSessionController\nHealthController" as Controllers
+
+rectangle "<b>Application Services</b>\nWikiSessionService\nGeminiService\nGeminiReply" as Services
+
+rectangle "<b>Wikipedia Infrastructure</b>\nWikipediaService\nWikiApiSection\nWikiSearchCandidate\nWikiSearchResults\nWikiSearchResolution" as WikiInfra
+
+rectangle "<b>Persistence</b>\nSessionMemoryDb\nSqliteSessionRepository\nSqliteVectorStore\nSqliteConnectionFactory\nISqliteConnectionFactory" as Persistence
+
+rectangle "<b>Application Models</b>\nWikiArticle\nWikiSection\nWikiMatch\nWikiTopicReference\nWikiLookupPlan\nTextTools" as Models
+
+rectangle "<b>Contracts / DTOs</b>\nSessionSummary\nSessionDetailDto\nMessageDto\nCitationDto\nGraphDto\nGraphNodeDto\nGraphEdgeDto\nCreateSessionRequest\nAddWikiArticleRequest" as Contracts
+
+rectangle "<b>Configuration</b>\nGeminiOptions\nServiceCollectionExtensions" as Config
+
+rectangle "<b>Tests</b>\nApiEndpointTests\nGeminiServiceTests\nWikipediaCitationTests\nFakeChatCompletionService\nQueuedWikipediaHandler\nTempSqliteConnectionFactory" as Tests
+
+Client --> Controllers
+Client ..> Contracts
+
+Controllers --> Services
+Controllers ..> Contracts
+
+Services --> WikiInfra
+Services --> Persistence
+Services --> Config
+Services ..> Models
+Services ..> Contracts
+
+WikiInfra ..> Models
+Persistence ..> Models
+Persistence ..> Contracts
+Persistence --> Config
+
+Tests ..> Controllers
+Tests ..> Services
+Tests ..> Persistence
+
+@enduml
+
+@startuml include-detailed
+'
+' Detailed all-in-one class graph. This keeps generated class members and
+' associations for inspection while using the same theme as every UML render.
+!theme mars
+scale max 2048*2048
+left to right direction
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundCorner 6
 skinparam ranksep 140
 skinparam nodesep 140
 skinparam padding 10
+skinparam WrapWidth 520
+skinparam DefaultFontSize 12
+skinparam ClassFontSize 13
+skinparam ClassAttributeFontSize 11
+skinparam ClassStereotypeFontSize 10
+skinparam ArrowFontSize 10
 skinparam classAttributeIconSize 0
-LAYOUT
-    tail -n +2 "$INCLUDE_PUML"
-  } > "$tmp_file"
+OVERVIEW
+  sed '1d;$d' "$generated_include" >> "$tmp_file"
+  cat <<'OVERVIEW' >> "$tmp_file"
+@enduml
+OVERVIEW
   mv "$tmp_file" "$INCLUDE_PUML"
+  rm -f "$generated_include"
 fi
+
+while IFS= read -r -d '' puml_file; do
+  if [[ "$puml_file" == "$INCLUDE_PUML" ]]; then
+    continue
+  fi
+
+  tmp_file="$(mktemp)"
+  {
+    head -n 1 "$puml_file"
+    cat <<'LAYOUT'
+'
+' Detailed per-file layout for readable subdiagram renders.
+!theme mars
+scale max 1024*768
+top to bottom direction
+skinparam linetype ortho
+skinparam shadowing false
+skinparam roundCorner 6
+skinparam ranksep 120
+skinparam nodesep 120
+skinparam padding 10
+skinparam WrapWidth 520
+skinparam DefaultFontSize 12
+skinparam ClassFontSize 13
+skinparam ClassAttributeFontSize 11
+skinparam ClassStereotypeFontSize 10
+skinparam ArrowFontSize 10
+skinparam classAttributeIconSize 0
+hide empty members
+LAYOUT
+    tail -n +2 "$puml_file"
+  } > "$tmp_file"
+  mv "$tmp_file" "$puml_file"
+done < <(find "$OUT_DIR" -type f -name "*.puml" -print0)
 
 mapfile -d '' puml_files < <(find "$OUT_DIR" -type f -name "*.puml" -print0 | sort -z)
 
